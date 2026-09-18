@@ -205,6 +205,9 @@ export class Jump {
       lx = 0; ly = 2.6; lz = p.z;
       fov = 60;
     }
+    // En portrait, un champ vertical constant retrecit le champ horizontal et le plongeur, qui vole
+    // a plat, deborde du cadre. On elargit donc le fov quand l'ecran est plus haut que large.
+    if (c.aspect < 1) fov *= 1 + (1 - c.aspect) * 0.85;
     const target = new THREE.Vector3(tx, ty, tz);
     if (this._snap) { c.position.copy(target); this._snap = false; }
     else c.position.lerp(target, k);

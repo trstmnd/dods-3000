@@ -24,6 +24,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | Version | Ce qu'elle apporte |
 |---|---|
 | v1.0 | 6 spots, run de 3 sauts, records par spot, mobile et clavier |
+| v1.1 | cadrage corrigé en portrait : le champ s'élargit quand l'écran est plus haut que large |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 
