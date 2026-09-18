@@ -1,0 +1,47 @@
+name: pages
+
+on:
+  push:
+    branches-ignore:
+      - gh-pages
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Controles
+        run: sh check.sh
+
+      - name: Construire _site
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          cp index.html style.css _site/
+          cp -r src _site/
+
+      - name: Calculer le dossier de destination
+        id: dest
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "dir=" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=preview/${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publier sur gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages
+          keep_files: true
+          destination_dir: ${{ steps.dest.outputs.dir }}
