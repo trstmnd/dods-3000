@@ -1,0 +1,59 @@
+# DODS 3000
+
+Jeu de **dødsing** (le death diving norvégien) qui se joue dans le navigateur, mobile comme ordinateur, sans installation.
+
+**Jouer : https://trstmnd.github.io/dods-3000/**
+
+## Le geste
+
+Un seul bouton : **Espace** au clavier, **tap** n'importe où sur mobile.
+
+1. Choisir un spot dans la carte du monde (6 spots, de 10 à 34 m).
+2. Le plongeur court vers le bord. **Appuyer au dernier mètre** : le décollage vaut un multiplicateur de 0,5 à 1,25.
+3. En l'air il part en **død**, bras en croix. Chaque dixième de seconde passé ouvert rapporte des points de style.
+4. **Refermer au dernier moment.** Trop tôt c'est un chicken, trop tard c'est un smack, et un smack termine le run.
+
+Un run vaut 3 sauts. Le record de chaque spot est gardé dans le navigateur.
+
+Score = (hauteur × 12 + style) × multiplicateur de timing × multiplicateur de décollage.
+
+## Ce qu'il faut savoir avant de toucher au code
+
+- **La fenêtre de tuck se mesure en temps avant l'impact, jamais en mètres.** À 28 m la vitesse d'entrée dépasse 25 m/s, donc 1 m vaut 40 ms : une fenêtre exprimée en distance serait injouable en haut et triviale en bas. Elle se resserre quand même avec la hauteur (facteur `k` dans `windows()` de `src/game.js`).
+- **`file://` ne charge pas les modules ES.** Il faut un serveur : `python3 -m http.server 8012` puis http://localhost:8012, ou la config `dods3000` du `launch.json` du Drive.
+- **Three.js arrive par importmap depuis cdnjs**, version épinglée. Aucune dépendance npm, aucun build, aucun asset : tout est généré (falaise, eau, plongeur, son).
+- **L'ordre des rotations d'Euler compte pour le plongeur** : `rotation.y` est appliqué avant `rotation.x`, donc une fois le corps basculé à l'horizontale, `y` agit comme un roll autour de l'axe du corps. C'est ce qui rend la croix des bras lisible depuis une caméra latérale, sans quoi les bras pointent vers l'objectif et disparaissent.
+- **La lumière d'un spot doit éclairer la face visible.** La caméra est toujours en x négatif : un soleil placé derrière la falaise rendait toutes les faces avant grises et verdâtres, teintées par la lumière hémisphérique. Chaque `sunPos` de `src/spots.js` pointe donc vers la caméra, et une lumière de remplissage sans ombre complète.
+- **Le niveau de l'eau est y = 0 pour la physique**, les vagues du shader sont purement visuelles (±0,3 m) : les faire compter décalerait le timing parfait sans que le joueur puisse le prévoir.
+
+## Tester
+
+```bash
+./check.sh
+```
+
+24 contrôles déterministes : présence des fichiers, syntaxe de chaque module, intégrité des 6 spots, bornes des fenêtres de tuck, câblage de `index.html`, absence de tiret cadratin.
+
+Pour le jeu lui-même, la page expose `window.__dods` :
+
+```js
+__dods.paused = true;        // fige la boucle rAF, la simulation n'avance plus que par tick()
+__dods.autoJump = 0.7;       // saute automatiquement a 0,7 m du bord
+__dods.autoTuck = 0.15;      // se referme automatiquement a 0,15 s de l'impact
+__dods.tick(60);             // avance 60 frames a 1/60 s et rend l'etat
+```
+
+C'est la seule façon de tester le timing : du JS asynchrone dépend de `requestAnimationFrame`, qui est ralenti dès que l'onglet n'est pas au premier plan, et les valeurs lues ne correspondent alors plus à l'image affichée.
+
+## Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `src/main.js` | machine d'états des écrans, boucle, HUD, sauvegarde |
+| `src/game.js` | physique du saut, fenêtres de timing, scoring, caméras |
+| `src/world.js` | ciel, eau (shader), falaise procédurale, plateformes, décor |
+| `src/diver.js` | rig du plongeur et ses poses |
+| `src/spots.js` | les 6 spots : hauteur, difficulté, palette, plateforme |
+| `src/fx.js` | gerbe d'eau, gouttes, anneau de surface |
+| `src/audio.js` | sons synthétisés, aucun fichier chargé |
+| `src/noise.js` | bruit et PRNG déterministes : la même falaise à chaque partie |
