@@ -19,7 +19,7 @@ Score = (hauteur × 12 + style) × multiplicateur de timing × multiplicateur de
 
 ## Versions
 
-Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js` (`export const VERSION`), le contrôle 26 de `check.sh` vérifie qu'il est bien là. À chaque livraison, bumper cette constante avant de pousser.
+Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js` (`export const VERSION`), un contrôle de `check.sh` vérifie qu'il est bien là. À chaque livraison, bumper cette constante avant de pousser.
 
 | Version | Ce qu'elle apporte |
 |---|---|
@@ -45,7 +45,7 @@ Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la bran
 ./check.sh
 ```
 
-24 contrôles déterministes : présence des fichiers, syntaxe de chaque module, intégrité des 6 spots, bornes des fenêtres de tuck, câblage de `index.html`, absence de tiret cadratin.
+28 contrôles déterministes : présence des fichiers, syntaxe de chaque module, intégrité des 6 spots, bornes des fenêtres de tuck, câblage de `index.html`, cadrage pour les agents de code, absence de tiret cadratin.
 
 Pour le jeu lui-même, la page expose `window.__dods` :
 
@@ -57,6 +57,41 @@ __dods.tick(60);             // avance 60 frames a 1/60 s et rend l'etat
 ```
 
 C'est la seule façon de tester le timing : du JS asynchrone dépend de `requestAnimationFrame`, qui est ralenti dès que l'onglet n'est pas au premier plan, et les valeurs lues ne correspondent alors plus à l'image affichée.
+
+## Développer avec OpenCode
+
+Le projet est cadré pour être continué par un agent de code bon marché plutôt
+qu'à la main ou avec un gros modèle.
+
+| Fichier | Rôle |
+|---|---|
+| `AGENTS.md` | tout ce qu'un agent doit savoir avant d'écrire une ligne : carte des modules, invariants, boucle de travail. Chargé automatiquement par OpenCode au démarrage, ce qui évite de lui faire explorer le dépôt. |
+| `ROADMAP.md` | les tâches suivantes, déjà découpées, avec leur critère d'acceptation. Une tâche par session. |
+| `opencode.json` | le modèle par défaut du projet. |
+
+```bash
+npm i -g opencode-ai     # ou : brew install sst/tap/opencode
+opencode auth login      # choisir le fournisseur, un abonnement Claude évite la facturation au token
+cd dods-3000 && opencode
+```
+
+Puis, dans la session : `Prends la première tâche non cochée de ROADMAP.md.`
+
+Ce qui fait vraiment baisser la facture, dans l'ordre :
+
+1. Une tâche par session neuve. Une session qui dure repaye tout son contexte à
+   chaque tour, c'est le poste de dépense principal.
+2. Un petit modèle par défaut. `opencode.json` met Haiku 4.5 ; `/models` bascule
+   vers un modèle plus fort le temps d'un passage difficile, puis on redescend.
+3. `AGENTS.md` plutôt que le prompt. Les invariants sont dans le dépôt, rien à
+   recoller à chaque fois, et ils profitent aussi aux autres agents qui lisent
+   ce fichier.
+4. `./check.sh` avant de demander une relecture au modèle : 28 contrôles pour
+   zéro token.
+
+Le reste du cadre ne change pas : brancher, pousser, la preview sort sur
+`https://trstmnd.github.io/dods-3000/preview/<branche>/`, et `main` publie à la
+racine.
 
 ## Fichiers
 
