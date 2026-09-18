@@ -17,9 +17,21 @@ Un run vaut 3 sauts. Le record de chaque spot est gardé dans le navigateur.
 
 Score = (hauteur × 12 + style) × multiplicateur de timing × multiplicateur de décollage.
 
+## Versions
+
+Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js` (`export const VERSION`), le contrôle 26 de `check.sh` vérifie qu'il est bien là. À chaque livraison, bumper cette constante avant de pousser.
+
+| Version | Ce qu'elle apporte |
+|---|---|
+| v1.0 | 6 spots, run de 3 sauts, records par spot, mobile et clavier |
+
+Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
+
 ## Ce qu'il faut savoir avant de toucher au code
 
 - **La fenêtre de tuck se mesure en temps avant l'impact, jamais en mètres.** À 28 m la vitesse d'entrée dépasse 25 m/s, donc 1 m vaut 40 ms : une fenêtre exprimée en distance serait injouable en haut et triviale en bas. Elle se resserre quand même avec la hauteur (facteur `k` dans `windows()` de `src/game.js`).
+- **Le navigateur cache les modules ES sans le dire.** En local, `python3 -m http.server` n'envoie pas de `Cache-Control`, donc Chrome applique son heuristique et sert l'ancien fichier : une modification semble alors sans effet et on part chercher un bug qui n'existe pas. Tester avec `http://localhost:8012/?cb=<n>` en changeant le n.
+- **Une capture du Browser pane est en retard d'une action** sur l'état réel de la page. Enchaîner deux captures et lire la seconde, sinon on juge le rendu d'avant sa correction.
 - **`file://` ne charge pas les modules ES.** Il faut un serveur : `python3 -m http.server 8012` puis http://localhost:8012, ou la config `dods3000` du `launch.json` du Drive.
 - **Three.js arrive par importmap depuis cdnjs**, version épinglée. Aucune dépendance npm, aucun build, aucun asset : tout est généré (falaise, eau, plongeur, son).
 - **L'ordre des rotations d'Euler compte pour le plongeur** : `rotation.y` est appliqué avant `rotation.x`, donc une fois le corps basculé à l'horizontale, `y` agit comme un roll autour de l'axe du corps. C'est ce qui rend la croix des bras lisible depuis une caméra latérale, sans quoi les bras pointent vers l'objectif et disparaissent.

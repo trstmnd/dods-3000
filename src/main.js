@@ -6,6 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump } from './game.js';
 
 const $ = s => document.querySelector(s);
+export const VERSION = 'v1.0';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
@@ -15,8 +16,9 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 700 ? 1.75 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.02;
+// ACES desature les teintes pales : la roche beige y virait au gris. Le tone mapping neutre garde la couleur.
+renderer.toneMapping = THREE.NeutralToneMapping || THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 1600);
@@ -215,7 +217,7 @@ document.querySelectorAll('[data-go]').forEach(b => {
 // Surface de test : pilotage du jeu sans clavier, pour les captures et le check.
 // autoJump : distance au bord (m) a laquelle sauter. autoTuck : ttc (s) auquel se refermer.
 // Les deux sont evalues dans la boucle, donc a la frame pres, ce que du JS asynchrone ne sait pas faire.
-window.__dods = { press, get jump() { return jump; }, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false };
+window.__dods = { press, get jump() { return jump; }, get world() { return world; }, camera, renderer, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false };
 
 /* ---------- boucle ---------- */
 function resize() {
@@ -276,20 +278,21 @@ function hudFlash() {
 }
 
 /* ---------- demarrage ---------- */
-// Un decor de fond des l ecran titre : on charge le premier spot pour que rien ne soit noir.
-world = buildWorld(SPOTS[2], renderer);
+// Un decor vivant des l'ecran titre : le spot le plus contraste sert de fond.
+const MENU_SPOT = SPOTS[2];
+world = buildWorld(MENU_SPOT, renderer);
 splash = createSplash(world.scene);
-camera.position.set(-16, SPOTS[2].height * 0.7, 22);
-camera.lookAt(0, SPOTS[2].height * 0.45, 0);
+$('#version').textContent = VERSION;
 $('#loading').classList.add('off');
 show('title');
 loop();
 
-// rotation lente de la camera sur l ecran titre
+// Travelling lent tant qu'on est dans les menus.
 setInterval(() => {
-  if (!$('#s-title').classList.contains('on') && !$('#s-spots').classList.contains('on') && !$('#s-brief').classList.contains('on')) return;
-  const a = performance.now() * 0.00006;
-  const s = SPOTS[2];
-  camera.position.set(Math.sin(a) * 30 - 6, s.height * 0.8 + Math.sin(a * 2) * 3, Math.cos(a) * 26 + 16);
-  camera.lookAt(0, s.height * 0.4, 0);
+  if (!['title', 'spots', 'brief'].some(n => $('#s-' + n).classList.contains('on'))) return;
+  const h = MENU_SPOT.height;
+  const a = -0.45 + Math.sin(performance.now() * 0.00007) * 0.5;
+  camera.position.set(-34 - Math.sin(a) * 14, h * 0.75 + Math.sin(a * 2) * 3, 40 + Math.cos(a) * 12);
+  camera.lookAt(0, h * 0.4, 0);
+  if (Math.abs(camera.fov - 52) > 0.2) { camera.fov += (52 - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
 }, 33);

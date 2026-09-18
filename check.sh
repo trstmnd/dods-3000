@@ -58,6 +58,10 @@ t "un seul canvas" "[ \$(grep -c '<canvas' index.html) -eq 1 ]"
 # 6. regles de style maison
 t "aucun tiret cadratin" "! grep -rlP '\xe2\x80\x94' index.html style.css src/ README.md"
 
+# 7. la version affichee existe et est unique
+t "version exposee" "grep -qE \"^export const VERSION = 'v[0-9]+\\.[0-9]+'\" src/main.js"
+t "version injectee dans la page" "grep -q 'id=\"version\"' index.html"
+
 rm -rf "$tmp"
 echo
 echo "  $ok OK, $ko FAIL"

@@ -139,7 +139,9 @@ function buildCliff(spot, rnd) {
   for (let i = 0; i < COLS - 1; i++) {
     for (let j = 0; j < profile.length - 1; j++) {
       const a = grid[i][j], b = grid[i + 1][j], c = grid[i + 1][j + 1], d = grid[i][j + 1];
-      for (const tri of [[a, b, c], [a, c, d]]) {
+      // L'enroulement compte : dans l'autre sens les normales pointent vers le sol et la falaise
+      // n'est plus eclairee que par la composante basse de la lumiere hemispherique, donc grise.
+      for (const tri of [[a, c, b], [a, d, c]]) {
         const shade = 0.72 + 0.28 * rnd();
         const cc = colA.clone().lerp(colB, Math.min(1, Math.max(0, (H - tri[0].y) / (H + 6)))).multiplyScalar(shade);
         for (const v of tri) { pos.push(v.x, v.y, v.z); cols.push(cc.r, cc.g, cc.b); }
@@ -254,7 +256,7 @@ export function buildWorld(spot, renderer) {
   scene.add(skyDome(pal));
 
   const sunDir = new THREE.Vector3(...pal.sunPos);
-  const sun = new THREE.DirectionalLight(new THREE.Color(pal.sun), 2.5);
+  const sun = new THREE.DirectionalLight(new THREE.Color(pal.sun), 3.3);
   sun.position.copy(sunDir).setLength(180);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
@@ -263,9 +265,10 @@ export function buildWorld(spot, renderer) {
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.bias = -0.0015;
   scene.add(sun);
-  const ground = new THREE.Color(pal.water).lerp(new THREE.Color(0xbfc8d0), 0.6);
-  scene.add(new THREE.HemisphereLight(new THREE.Color(pal.sky[0]), ground, pal.ambient * 1.15));
-  const fill = new THREE.DirectionalLight(new THREE.Color(pal.sky[0]).lerp(new THREE.Color(0xffffff), 0.35), 0.85);
+  // Ces lumieres d'appoint restent basses : montees plus haut, leur teinte froide lave les roches claires.
+  const ground = new THREE.Color(pal.water).lerp(new THREE.Color(0xcdd3d8), 0.7);
+  scene.add(new THREE.HemisphereLight(new THREE.Color(pal.sky[0]), ground, pal.ambient * 1.0));
+  const fill = new THREE.DirectionalLight(new THREE.Color(pal.sky[0]).lerp(new THREE.Color(0xfff6e8), 0.7), 0.55);
   fill.position.set(-120, 45, -60);
   scene.add(fill);
 
