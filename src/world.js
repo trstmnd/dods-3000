@@ -154,6 +154,8 @@ function buildCliff(spot, rnd) {
   ];
   const COLS = 34, W = 54;
   const pos = [], colA = new THREE.Color(spot.palette.rock), colB = new THREE.Color(spot.palette.rock2), cols = [];
+  // La roche mouillee, juste au dessus de l'eau : plus sombre et tiree vers le fond.
+  const wet = new THREE.Color(spot.palette.deep).lerp(colB, 0.35).multiplyScalar(0.62);
   const grid = [];
   for (let i = 0; i < COLS; i++) {
     const x = -W / 2 + (W * i) / (COLS - 1);
@@ -180,8 +182,15 @@ function buildCliff(spot, rnd) {
       // L'enroulement compte : dans l'autre sens les normales pointent vers le sol et la falaise
       // n'est plus eclairee que par la composante basse de la lumiere hemispherique, donc grise.
       for (const tri of [[a, c, b], [a, d, c]]) {
-        const shade = 0.72 + 0.28 * rnd();
-        const cc = colA.clone().lerp(colB, Math.min(1, Math.max(0, (H - tri[0].y) / (H + 6)))).multiplyScalar(shade);
+        const my = (tri[0].y + tri[1].y + tri[2].y) / 3;
+        const mx = (tri[0].x + tri[1].x + tri[2].x) / 3;
+        // Le bruit par face donne le grain, les strates donnent l'echelle : sans elles la
+        // paroi est un bloc uniforme et la hauteur ne se lit pas.
+        const shade = 0.82 + 0.18 * rnd();
+        const band = 0.88 + 0.12 * Math.sin(my * 1.05 + mx * 0.06) + 0.06 * Math.sin(my * 2.6 + 1.3);
+        const cc = colA.clone().lerp(colB, Math.min(1, Math.max(0, (H - my) / (H + 6)))).multiplyScalar(shade * band);
+        const soak = 1 - Math.min(1, Math.max(0, (my - 0.2) / 2.6));
+        if (soak > 0) cc.lerp(wet, soak * 0.75);
         for (const v of tri) { pos.push(v.x, v.y, v.z); cols.push(cc.r, cc.g, cc.b); }
       }
     }
