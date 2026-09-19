@@ -118,6 +118,7 @@ function nextJump() {
 
 function onJumpDone(res) {
   state.last = res;
+  if (res.dead) buzz([40, 60, 40]);
   state.runScore += res.score;
   $('#hud-score').textContent = state.runScore;
   audio.grade(res.dead ? 0 : res.grade.mult);
@@ -201,6 +202,14 @@ function updateHud() {
   }
 }
 
+/* ---------- retour haptique ---------- */
+// navigator.vibrate manque sur desktop et sur iOS : on sort sans bruit.
+// Le bouton du son commande aussi la vibration, c'est le meme reflexe de discretion.
+function buzz(pattern) {
+  if (save.muted || typeof navigator.vibrate !== 'function') return;
+  try { navigator.vibrate(pattern); } catch { }
+}
+
 /* ---------- pause ---------- */
 // L'onglet en arriere plan ralentit requestAnimationFrame : sans pause, le joueur
 // revient sur un smack qu'il n'a pas vu venir. On fige et on attend une action.
@@ -237,9 +246,11 @@ function press() {
   jump.input();
   if (before === 'walk' && jump.state === 'fly') {
     toast(jump.takeoff.label);
+    buzz(20);
     $('#runbar').classList.remove('on');
   } else if (jump.tucked && jump.grade) {
     callout(jump.grade.label, jump.grade.color);
+    buzz(jump.grade.key === 'smack' ? [40, 60, 40] : 30);
   }
 }
 
