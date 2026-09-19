@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.1';
+export const VERSION = 'v1.2';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 

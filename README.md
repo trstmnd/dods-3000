@@ -15,6 +15,8 @@ Un seul bouton : **Espace** au clavier, **tap** n'importe où sur mobile.
 
 Un run vaut 3 sauts. Le record de chaque spot est gardé dans le navigateur.
 
+Le bouton en bas à gauche coupe le son, et la coupure est gardée d'une partie à l'autre. Si l'onglet passe en arrière plan pendant un saut, le jeu se met en pause et attend une action pour repartir au même endroit.
+
 Score = (hauteur × 12 + style) × multiplicateur de timing × multiplicateur de décollage.
 
 ## Versions
@@ -25,6 +27,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 |---|---|
 | v1.0 | 6 spots, run de 3 sauts, records par spot, mobile et clavier |
 | v1.1 | cadrage corrigé en portrait : le champ s'élargit quand l'écran est plus haut que large |
+| v1.2 | pause quand l'onglet passe en arrière plan, coupure du son mémorisée, vibration mobile, respect de `prefers-reduced-motion` |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 

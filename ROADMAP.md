@@ -6,26 +6,26 @@ Prendre la premiere non cochee, la livrer, bumper `VERSION`, pousser la branche.
 
 Ordre choisi par rapport valeur sur effort, pas par ambition.
 
-## v1.2, confort
+## v1.2, confort (livre)
 
-- [ ] **Pause a la perte de focus.** `src/main.js`. Sur `visibilitychange`, si la
+- [x] **Pause a la perte de focus.** `src/main.js`. Sur `visibilitychange`, si la
   page passe en arriere plan pendant un saut, figer la boucle et afficher
   "REPRENDRE". Sans ca l'onglet en arriere plan ralentit `requestAnimationFrame`
   et le joueur retrouve un smack qu'il n'a pas vu venir.
   Acceptation : passer sur un autre onglet pendant la chute, revenir, le saut
   reprend au meme etat.
 
-- [ ] **Coupure du son memorisee.** `index.html`, `style.css`, `src/main.js`,
+- [x] **Coupure du son memorisee.** `index.html`, `style.css`, `src/main.js`,
   `src/audio.js`. Un bouton haut droite sur l'ecran titre et dans le HUD, etat
   garde dans la sauvegarde `dods3000.v1`.
   Acceptation : couper, recharger la page, le son reste coupe.
 
-- [ ] **Vibration mobile.** `src/main.js`. `navigator.vibrate` au decollage
+- [x] **Vibration mobile.** `src/main.js`. `navigator.vibrate` au decollage
   (20 ms), au tuck reussi (30 ms), au smack (deux impulsions). Silencieux si
   l'API manque, et respecte la coupure du son.
   Acceptation : aucune erreur console sur un navigateur sans l'API.
 
-- [ ] **Respect de `prefers-reduced-motion`.** `src/main.js`, `src/game.js`.
+- [x] **Respect de `prefers-reduced-motion`.** `src/main.js`, `src/game.js`.
   Secousse de camera et flash divises par quatre quand la preference est active.
   Acceptation : la partie reste jouable et lisible, le scoring ne change pas.
 
