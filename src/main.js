@@ -33,6 +33,24 @@ function loadSave() {
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { } }
 function totalScore() { return Object.values(save.best).reduce((a, b) => a + b, 0); }
 
+/* ---------- son ---------- */
+// L'etat vit dans la meme sauvegarde que les records, donc il survit au rechargement.
+function setMuted(v) {
+  save.muted = !!v;
+  persist();
+  audio.setMuted(save.muted);
+  const b = $('#sound');
+  b.classList.toggle('muted', save.muted);
+  b.setAttribute('aria-pressed', save.muted ? 'true' : 'false');
+  b.title = save.muted ? 'Rétablir le son' : 'Couper le son';
+}
+$('#sound').addEventListener('click', () => {
+  const next = !save.muted;
+  setMuted(next);
+  if (!next) { audio.unlock(); audio.ui(); }
+});
+setMuted(!!save.muted);
+
 /* ---------- ecrans ---------- */
 const screens = ['title', 'spots', 'brief', 'run', 'jump', 'end'];
 function show(...names) {
