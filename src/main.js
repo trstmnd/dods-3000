@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.2';
+export const VERSION = 'v1.3';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
@@ -61,23 +61,42 @@ function buildSpotList() {
   const list = $('#spot-list');
   list.innerHTML = '';
   for (const s of SPOTS) {
-    const el = document.createElement('div');
+    // Un vrai bouton : focus au clavier, Entree et Espace natifs, annonce par les lecteurs d'ecran.
+    // Le contenu reste du phrasing (span, i), un titre de section n'a pas sa place dans un bouton.
+    const el = document.createElement('button');
     el.className = 'spot';
+    el.type = 'button';
     const best = save.best[s.id] || 0;
+    el.setAttribute('aria-label',
+      `${s.name}, ${s.place}, ${s.height} mètres, difficulté ${DIFF_LABEL[s.diff]}, record ${best}`);
     el.innerHTML = `
-      <div class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></div>
-      <h3>${s.name}</h3>
-      <p>${s.place}</p>
-      <div class="meta">
+      <span class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></span>
+      <span class="name">${s.name}</span>
+      <span class="place">${s.place}</span>
+      <span class="meta" aria-hidden="true">
         <span><b>${s.height} m</b></span>
         <span class="diff">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
         <span>RECORD <b>${best}</b></span>
-      </div>`;
+      </span>`;
     el.onclick = () => { audio.ui(); openBrief(s); };
     list.appendChild(el);
   }
   $('#total-score').textContent = totalScore();
 }
+
+// Les fleches parcourent la grille des spots, Debut et Fin sautent aux extremites.
+$('#spot-list').addEventListener('keydown', e => {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step === undefined && e.key !== 'Home' && e.key !== 'End') return;
+  const cards = [...document.querySelectorAll('#spot-list .spot')];
+  if (!cards.length) return;
+  const i = cards.indexOf(document.activeElement);
+  const next = e.key === 'Home' ? 0
+    : e.key === 'End' ? cards.length - 1
+      : Math.min(cards.length - 1, Math.max(0, (i < 0 ? 0 : i + step)));
+  e.preventDefault();
+  cards[next].focus();
+});
 
 function openBrief(spot) {
   state.spot = spot;
@@ -92,7 +111,9 @@ function openBrief(spot) {
 
 /* ---------- run ---------- */
 function startRun() {
+  // L'ordre compte : le plongeur et la gerbe vivent dans la scene, donc ils partent avec elle.
   if (jump) { jump.dispose(); jump = null; }
+  if (world) { world.dispose(); world = null; splash = null; }
   const spot = state.spot;
   world = buildWorld(spot, renderer);
   splash = createSplash(world.scene);
@@ -116,6 +137,38 @@ function nextJump() {
   jump.onDone = onJumpDone;
 }
 
+/* ---------- lecture du timing ---------- */
+// GOOD ou EARLY ne dit pas si on a manque de 30 ms ou de 300. L'ecart au parfait et
+// la jauge situent la fermeture dans la fenetre : c'est ce qui rend le geste apprenable.
+const sec = v => v.toFixed(2).replace('.', ',');
+
+function timingText(res) {
+  const w = res.win;
+  if (!res.tucked) return 'jamais refermé';
+  if (res.ttc < w.perfectLo) return sec(w.perfectLo - res.ttc) + ' s trop tard';
+  if (res.ttc <= w.perfectHi) return 'au cœur de la fenêtre';
+  return sec(res.ttc - w.perfectHi) + ' s trop tôt';
+}
+
+// L'axe va de la fermeture la plus precoce, a gauche, a l'entree dans l'eau, a droite.
+function drawGauge(res) {
+  const w = res.win;
+  const scale = w.goodHi;
+  const x = ttc => Math.max(0, Math.min(100, (1 - ttc / scale) * 100));
+  const band = (sel, lo, hi) => {
+    const el = $('#jr-gauge .g-zone.' + sel);
+    el.style.left = x(hi) + '%';
+    el.style.width = Math.max(0, x(lo) - x(hi)) + '%';
+  };
+  band('good', w.greatHi, w.goodHi);
+  band('great', w.perfectHi, w.greatHi);
+  band('perfect', w.perfectLo, w.perfectHi);
+  band('smack', 0, w.perfectLo);
+  const mark = $('#jr-gauge .g-mark');
+  mark.style.left = (res.tucked ? x(res.ttc) : 100) + '%';
+  mark.style.background = res.grade.color;
+}
+
 function onJumpDone(res) {
   state.last = res;
   if (res.dead) buzz([40, 60, 40]);
@@ -127,6 +180,9 @@ function onJumpDone(res) {
   $('#jr-sub').textContent = res.dead
     ? 'À plat. Le run s\'arrête là.'
     : `${res.takeoff.label} · ${res.air.toFixed(2)} s en l\'air`;
+  $('#jr-timing').textContent = timingText(res);
+  $('#jr-timing').style.color = res.grade.color;
+  drawGauge(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
     <li><span>Base ${res.height} m</span><b>${res.base}</b></li>
     <li><span>Style, ${res.air.toFixed(2)} s en døds</span><b>+${res.style}</b></li>
@@ -202,6 +258,18 @@ function updateHud() {
   }
 }
 
+/* ---------- ralenti sur un perfect ---------- */
+// Le geste parfait merite d'etre vu. Le ralenti commence apres la fermeture, donc apres
+// que le style et la note sont figes : le score est identique avec ou sans.
+const SLOW_TTC = 0.35, SLOW_RATE = 0.35;
+function slowFactor() {
+  if (!window.__dods.slowmo || !jump || !jump.grade || jump.grade.key !== 'perfect') return 1;
+  // La fin de la chute, puis la gerbe : c'est la que le geste se voit.
+  if (jump.state === 'fly') return jump.tucked && jump.ttc <= SLOW_TTC ? SLOW_RATE : 1;
+  if (jump.state === 'impact') return jump.impactT < SLOW_TTC ? SLOW_RATE : 1;
+  return 1;
+}
+
 /* ---------- mouvement reduit ---------- */
 // La preference est lue a chaque usage, donc un changement systeme s'applique sans rechargement.
 // Elle n'agit que sur la camera et le flash : la physique et le score restent identiques.
@@ -261,7 +329,9 @@ function press() {
 }
 
 window.addEventListener('keydown', e => {
-  if (e.code === 'Space' || e.code === 'Enter' || e.key === ' ') { e.preventDefault(); press(); }
+  // Un bouton a le focus : on lui laisse son Espace et son Entree natifs.
+  const onControl = e.target && e.target.closest && e.target.closest('button');
+  if (!onControl && (e.code === 'Space' || e.code === 'Enter' || e.key === ' ')) { e.preventDefault(); press(); }
   if (e.code === 'Escape' && $('#s-run').classList.contains('on')) { setPause(false); show('spots'); }
 });
 canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
@@ -278,7 +348,7 @@ document.querySelectorAll('[data-go]').forEach(b => {
 // Surface de test : pilotage du jeu sans clavier, pour les captures et le check.
 // autoJump : distance au bord (m) a laquelle sauter. autoTuck : ttc (s) auquel se refermer.
 // Les deux sont evalues dans la boucle, donc a la frame pres, ce que du JS asynchrone ne sait pas faire.
-window.__dods = { press, get jump() { return jump; }, get world() { return world; }, camera, renderer, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false };
+window.__dods = { press, get jump() { return jump; }, get world() { return world; }, camera, renderer, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false, slowmo: true };
 
 /* ---------- boucle ---------- */
 function resize() {
@@ -298,6 +368,8 @@ function frame(dt, t) {
   if (!world) return;
   world.waterMat.uniforms.uTime.value = t;
   if (jump && $('#s-run').classList.contains('on')) {
+    const k = slowFactor();
+    dt *= k;
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }

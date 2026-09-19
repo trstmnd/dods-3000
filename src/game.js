@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createDiver, applyPose, runPose, POSES } from './diver.js';
-import { EDGE_Z, RUN_START_Z } from './world.js';
+import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
 
 export const TUNING = {
   gravity: 13.5,
@@ -184,7 +184,9 @@ export class Jump {
     this.result = {
       dead, grade: this.grade, base, style, score,
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
-      height: this.spot.height
+      height: this.spot.height,
+      // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
+      win: this.win, tucked: this.tucked
     };
   }
 
@@ -237,5 +239,6 @@ export class Jump {
     return { phase: 'impact', alt: 0 };
   }
 
-  dispose() { this.scene.remove(this.diver.root); }
+  // Le rig sort de la scene, donc la liberation de celle-ci ne le verrait plus passer.
+  dispose() { this.scene.remove(this.diver.root); disposeTree(this.diver.root); }
 }
