@@ -279,5 +279,6 @@ export class Jump {
   // Le rig sort de la scene, donc la liberation de celle-ci ne le verrait plus passer.
   dispose() {
     for (const o of [this.diver.root, this.diver.blob]) { this.scene.remove(o); disposeTree(o); }
+    this.diver.skeleton?.dispose(); // la texture d'os du skinning vit sur le GPU elle aussi
   }
 }
