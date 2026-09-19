@@ -258,6 +258,18 @@ function updateHud() {
   }
 }
 
+/* ---------- ralenti sur un perfect ---------- */
+// Le geste parfait merite d'etre vu. Le ralenti commence apres la fermeture, donc apres
+// que le style et la note sont figes : le score est identique avec ou sans.
+const SLOW_TTC = 0.35, SLOW_RATE = 0.35;
+function slowFactor() {
+  if (!window.__dods.slowmo || !jump || !jump.grade || jump.grade.key !== 'perfect') return 1;
+  // La fin de la chute, puis la gerbe : c'est la que le geste se voit.
+  if (jump.state === 'fly') return jump.tucked && jump.ttc <= SLOW_TTC ? SLOW_RATE : 1;
+  if (jump.state === 'impact') return jump.impactT < SLOW_TTC ? SLOW_RATE : 1;
+  return 1;
+}
+
 /* ---------- mouvement reduit ---------- */
 // La preference est lue a chaque usage, donc un changement systeme s'applique sans rechargement.
 // Elle n'agit que sur la camera et le flash : la physique et le score restent identiques.
@@ -336,7 +348,7 @@ document.querySelectorAll('[data-go]').forEach(b => {
 // Surface de test : pilotage du jeu sans clavier, pour les captures et le check.
 // autoJump : distance au bord (m) a laquelle sauter. autoTuck : ttc (s) auquel se refermer.
 // Les deux sont evalues dans la boucle, donc a la frame pres, ce que du JS asynchrone ne sait pas faire.
-window.__dods = { press, get jump() { return jump; }, get world() { return world; }, camera, renderer, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false };
+window.__dods = { press, get jump() { return jump; }, get world() { return world; }, camera, renderer, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false, slowmo: true };
 
 /* ---------- boucle ---------- */
 function resize() {
@@ -356,6 +368,8 @@ function frame(dt, t) {
   if (!world) return;
   world.waterMat.uniforms.uTime.value = t;
   if (jump && $('#s-run').classList.contains('on')) {
+    const k = slowFactor();
+    dt *= k;
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }
