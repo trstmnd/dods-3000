@@ -19,6 +19,26 @@ export function waveHeight(x, z, t) {
   return h;
 }
 
+// L'onde circulaire laissee par l'entree du plongeur. Elle vit dans les deux etages :
+// un relief discret au sommet, une crete d'ecume nette au fragment. Purement visuelle,
+// la physique du saut ne lit jamais la hauteur de l'eau.
+const RIPPLE = `
+  float rippleAge(){ return uTime - uImpact.z; }
+  float rippleBand(vec2 xz){
+    float age = rippleAge();
+    if (age <= 0.0 || age > 2.6) return 0.0;
+    float d = distance(xz, uImpact.xy);
+    float k = 1.0 - clamp(abs(d - age * 7.0) / 2.2, 0.0, 1.0);
+    return k * k * (1.0 - age / 2.6) * smoothstep(26.0, 2.0, d);
+  }
+  float rippleH(vec2 xz){
+    float age = rippleAge();
+    if (age <= 0.0 || age > 2.6) return 0.0;
+    float d = distance(xz, uImpact.xy);
+    return sin((d - age * 7.0) * 1.6) * rippleBand(xz) * 0.3;
+  }
+`;
+
 function waterMaterial(pal, sunDir) {
   const consts = WAVES.map((w, i) =>
     `const vec4 W${i} = vec4(${w.ax.toFixed(3)}, ${w.az.toFixed(3)}, ${w.k.toFixed(3)}, ${w.spd.toFixed(3)});
@@ -32,13 +52,18 @@ function waterMaterial(pal, sunDir) {
       uSun: { value: new THREE.Color(pal.sun) },
       uSunDir: { value: sunDir.clone().normalize() },
       uFog: { value: new THREE.Color(pal.fog) },
-      uFogDensity: { value: pal.fogDensity }
+      uFogDensity: { value: pal.fogDensity },
+      uSky: { value: new THREE.Color(pal.sky[0]) },
+      // x, z du point d'entree et date de l'impact, en temps de simulation
+      uImpact: { value: new THREE.Vector3(0, 0, -99) }
     },
     vertexShader: `
       ${consts}
       uniform float uTime;
+      uniform vec3 uImpact;
       varying vec3 vWorld; varying float vWave; varying vec3 vNormalW; varying float vDepth;
       float phase(vec4 w, vec2 p){ return (p.x*w.x + p.y*w.y)*w.z + uTime*w.w; }
+      ${RIPPLE}
       void main(){
         vec3 p = position;
         vec2 xz = p.xz;
@@ -49,6 +74,9 @@ function waterMaterial(pal, sunDir) {
           dx += cos(ph)*A${i}*W${i}.x*W${i}.z;
           dz += cos(ph)*A${i}*W${i}.y*W${i}.z;
         }`).join('\n')}
+        // Le maillage est trop lache pour dessiner l'onde : le relief reste discret ici,
+        // c'est le fragment qui en fait une crete nette.
+        h += rippleH(xz);
         p.y += h; vWave = h;
         vNormalW = normalize(vec3(-dx, 1.0, -dz));
         vec4 wp = modelMatrix * vec4(p, 1.0);
@@ -58,9 +86,11 @@ function waterMaterial(pal, sunDir) {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform vec3 uShallow, uDeep, uSun, uSunDir, uFog;
+      uniform vec3 uShallow, uDeep, uSun, uSunDir, uFog, uSky;
       uniform float uFogDensity, uTime;
+      uniform vec3 uImpact;
       varying vec3 vWorld; varying float vWave; varying vec3 vNormalW; varying float vDepth;
+      ${RIPPLE}
       void main(){
         vec3 N = normalize(vNormalW);
         vec3 V = normalize(cameraPosition - vWorld);
@@ -69,11 +99,19 @@ function waterMaterial(pal, sunDir) {
         vec3 col = mix(uShallow, uDeep, smoothstep(14.0, 130.0, d));
         col = mix(col, uShallow * 1.35, smoothstep(0.0, 0.32, vWave) * 0.4);
         vec3 H = normalize(uSunDir + V);
-        col += uSun * pow(max(dot(N, H), 0.0), 110.0) * 1.6;
-        col = mix(col, uSun * 0.9, fres * 0.5);
-        float foam = (1.0 - smoothstep(0.0, 6.0, vWorld.z)) * step(-24.0, vWorld.x) * step(vWorld.x, 24.0);
-        foam *= 0.55 + 0.45 * sin(vWorld.x * 1.7 + uTime * 2.3);
-        col = mix(col, vec3(0.93, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.5);
+        float ndh = max(dot(N, H), 0.0);
+        // Deux lobes : l'eclat dur pour les etincelles, un lobe large pour la trainee du
+        // soleil sur l'eau. Le seul lobe dur n'allumait que quelques pixels.
+        col += uSun * pow(ndh, 110.0) * 1.6;
+        col += uSun * pow(ndh, 16.0) * 0.22;
+        // A angle rasant l'eau renvoie le ciel, pas le soleil : c'est ce qui pose l'horizon.
+        col = mix(col, mix(uSky, uSun, 0.25), fres * 0.55);
+        // Ecume au pied de la falaise. Les bords lateraux etaient coupes net par un step,
+        // ce qui dessinait un rectangle sur la mer.
+        float foam = (1.0 - smoothstep(0.0, 9.0, vWorld.z)) * (1.0 - smoothstep(15.0, 27.0, abs(vWorld.x)));
+        foam *= (0.5 + 0.5 * sin(vWorld.x * 1.7 + uTime * 2.3)) * (0.55 + 0.45 * sin(vWorld.x * 0.61 - uTime * 1.4));
+        foam = max(foam, rippleBand(vWorld.xz) * 0.8);
+        col = mix(col, vec3(0.93, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.6);
         float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
         gl_FragColor = vec4(mix(col, uFog, clamp(f, 0.0, 1.0)), 1.0);
       }`
@@ -116,6 +154,8 @@ function buildCliff(spot, rnd) {
   ];
   const COLS = 34, W = 54;
   const pos = [], colA = new THREE.Color(spot.palette.rock), colB = new THREE.Color(spot.palette.rock2), cols = [];
+  // La roche mouillee, juste au dessus de l'eau : plus sombre et tiree vers le fond.
+  const wet = new THREE.Color(spot.palette.deep).lerp(colB, 0.35).multiplyScalar(0.62);
   const grid = [];
   for (let i = 0; i < COLS; i++) {
     const x = -W / 2 + (W * i) / (COLS - 1);
@@ -142,8 +182,15 @@ function buildCliff(spot, rnd) {
       // L'enroulement compte : dans l'autre sens les normales pointent vers le sol et la falaise
       // n'est plus eclairee que par la composante basse de la lumiere hemispherique, donc grise.
       for (const tri of [[a, c, b], [a, d, c]]) {
-        const shade = 0.72 + 0.28 * rnd();
-        const cc = colA.clone().lerp(colB, Math.min(1, Math.max(0, (H - tri[0].y) / (H + 6)))).multiplyScalar(shade);
+        const my = (tri[0].y + tri[1].y + tri[2].y) / 3;
+        const mx = (tri[0].x + tri[1].x + tri[2].x) / 3;
+        // Le bruit par face donne le grain, les strates donnent l'echelle : sans elles la
+        // paroi est un bloc uniforme et la hauteur ne se lit pas.
+        const shade = 0.82 + 0.18 * rnd();
+        const band = 0.88 + 0.12 * Math.sin(my * 1.05 + mx * 0.06) + 0.06 * Math.sin(my * 2.6 + 1.3);
+        const cc = colA.clone().lerp(colB, Math.min(1, Math.max(0, (H - my) / (H + 6)))).multiplyScalar(shade * band);
+        const soak = 1 - Math.min(1, Math.max(0, (my - 0.2) / 2.6));
+        if (soak > 0) cc.lerp(wet, soak * 0.75);
         for (const v of tri) { pos.push(v.x, v.y, v.z); cols.push(cc.r, cc.g, cc.b); }
       }
     }

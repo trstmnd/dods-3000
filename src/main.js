@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.3';
+export const VERSION = 'v1.4';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
@@ -116,7 +116,7 @@ function startRun() {
   if (world) { world.dispose(); world = null; splash = null; }
   const spot = state.spot;
   world = buildWorld(spot, renderer);
-  splash = createSplash(world.scene);
+  splash = createSplash(world.scene, world.waterMat);
   jump = new Jump(spot, world.scene, camera, splash, audio);
   state.jumpIndex = 0;
   state.runScore = 0;
@@ -362,11 +362,15 @@ resize();
 
 const clock = new THREE.Clock();
 let shake = 0;
+// Un seul temps de simulation pour la mer : sous tick(), une horloge murale aurait fait
+// sauter les vagues et l'onde d'impact.
+let simTime = 0;
 
 // Une frame de simulation. dt est fourni par la boucle, ou force par les tests.
-function frame(dt, t) {
+function frame(dt) {
   if (!world) return;
-  world.waterMat.uniforms.uTime.value = t;
+  simTime += dt;
+  world.waterMat.uniforms.uTime.value = simTime;
   if (jump && $('#s-run').classList.contains('on')) {
     const k = slowFactor();
     dt *= k;
@@ -390,12 +394,12 @@ function frame(dt, t) {
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, clock.getDelta());
-  frame(paused() ? 0 : dt, clock.elapsedTime);
+  frame(paused() ? 0 : dt);
 }
 
 // Avance la simulation d'un nombre de pas fixes, sans dependre du rafraichissement ecran.
 window.__dods.tick = (steps = 1, dt = 1 / 60) => {
-  for (let i = 0; i < steps; i++) frame(dt, performance.now() / 1000);
+  for (let i = 0; i < steps; i++) frame(dt);
   return jump ? { state: jump.state, y: +jump.pos.y.toFixed(2), z: +jump.pos.z.toFixed(2), ttc: +jump.ttc.toFixed(3), tucked: jump.tucked, grade: jump.grade && jump.grade.key } : null;
 };
 
@@ -416,7 +420,7 @@ function hudFlash() {
 // Un decor vivant des l'ecran titre : le spot le plus contraste sert de fond.
 const MENU_SPOT = SPOTS[2];
 world = buildWorld(MENU_SPOT, renderer);
-splash = createSplash(world.scene);
+splash = createSplash(world.scene, world.waterMat);
 $('#version').textContent = VERSION;
 $('#loading').classList.add('off');
 show('title');

@@ -61,10 +61,19 @@ export function createDiver() {
   joints.body = body;
 
   // Ombre de contact, moins couteuse qu'une shadow map sur un si petit objet
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.55, 20),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }));
-  blob.rotation.x = -Math.PI / 2;
-  root.add(blob);
+  // L'ombre au sol sert aussi de repere de hauteur pendant la chute. Elle vit hors du rig :
+  // enfant du corps, elle basculerait avec lui une fois le plongeur a l'horizontale.
+  // Un disque sombre disparait sur l'eau d'un fjord, un anneau clair disparait en plein
+  // soleil : les deux ensemble se lisent partout.
+  const blob = new THREE.Group();
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24),
+    new THREE.MeshBasicMaterial({ color: 0x00131f, transparent: true, opacity: 0.28, depthWrite: false }));
+  disc.rotation.x = -Math.PI / 2;
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.6, 36),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+  halo.rotation.x = -Math.PI / 2;
+  blob.add(disc, halo);
+  blob.userData = { disc: disc.material, halo: halo.material };
 
   return { root, joints, blob };
 }
