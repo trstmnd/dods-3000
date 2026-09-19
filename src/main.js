@@ -61,23 +61,42 @@ function buildSpotList() {
   const list = $('#spot-list');
   list.innerHTML = '';
   for (const s of SPOTS) {
-    const el = document.createElement('div');
+    // Un vrai bouton : focus au clavier, Entree et Espace natifs, annonce par les lecteurs d'ecran.
+    // Le contenu reste du phrasing (span, i), un titre de section n'a pas sa place dans un bouton.
+    const el = document.createElement('button');
     el.className = 'spot';
+    el.type = 'button';
     const best = save.best[s.id] || 0;
+    el.setAttribute('aria-label',
+      `${s.name}, ${s.place}, ${s.height} mètres, difficulté ${DIFF_LABEL[s.diff]}, record ${best}`);
     el.innerHTML = `
-      <div class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></div>
-      <h3>${s.name}</h3>
-      <p>${s.place}</p>
-      <div class="meta">
+      <span class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></span>
+      <span class="name">${s.name}</span>
+      <span class="place">${s.place}</span>
+      <span class="meta" aria-hidden="true">
         <span><b>${s.height} m</b></span>
         <span class="diff">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
         <span>RECORD <b>${best}</b></span>
-      </div>`;
+      </span>`;
     el.onclick = () => { audio.ui(); openBrief(s); };
     list.appendChild(el);
   }
   $('#total-score').textContent = totalScore();
 }
+
+// Les fleches parcourent la grille des spots, Debut et Fin sautent aux extremites.
+$('#spot-list').addEventListener('keydown', e => {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step === undefined && e.key !== 'Home' && e.key !== 'End') return;
+  const cards = [...document.querySelectorAll('#spot-list .spot')];
+  if (!cards.length) return;
+  const i = cards.indexOf(document.activeElement);
+  const next = e.key === 'Home' ? 0
+    : e.key === 'End' ? cards.length - 1
+      : Math.min(cards.length - 1, Math.max(0, (i < 0 ? 0 : i + step)));
+  e.preventDefault();
+  cards[next].focus();
+});
 
 function openBrief(spot) {
   state.spot = spot;
@@ -263,7 +282,9 @@ function press() {
 }
 
 window.addEventListener('keydown', e => {
-  if (e.code === 'Space' || e.code === 'Enter' || e.key === ' ') { e.preventDefault(); press(); }
+  // Un bouton a le focus : on lui laisse son Espace et son Entree natifs.
+  const onControl = e.target && e.target.closest && e.target.closest('button');
+  if (!onControl && (e.code === 'Space' || e.code === 'Enter' || e.key === ' ')) { e.preventDefault(); press(); }
   if (e.code === 'Escape' && $('#s-run').classList.contains('on')) { setPause(false); show('spots'); }
 });
 canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
