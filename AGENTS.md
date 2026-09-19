@@ -22,7 +22,7 @@ dans `preview/<branche>` sur `gh-pages`.
 | `src/main.js` | machine d'etats des ecrans, boucle rAF, HUD, sauvegarde, `VERSION` | flux de jeu, affichage, stockage |
 | `src/game.js` | physique du saut, fenetres de timing, scoring, cameras | equilibrage, sensations |
 | `src/world.js` | ciel, eau (shader), falaise procedurale, plateformes, decor | environnement |
-| `src/diver.js` | rig du plongeur et ses poses | animation du personnage |
+| `src/diver.js` | corps genere, squelette, poses | animation ou silhouette du personnage |
 | `src/spots.js` | les 6 spots : hauteur, difficulte, palette, plateforme | ajout ou reglage d'un spot |
 | `src/fx.js` | gerbe, gouttes, anneau de surface | impact |
 | `src/audio.js` | sons synthetises | son |
@@ -50,7 +50,11 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
 6. **`VERSION` dans `src/main.js` se bumpe a chaque livraison**, et la ligne du
    tableau des versions du README se remplit.
 7. **Pas de dependance npm, pas d'etape de build, pas de fichier binaire.**
-8. **Une scene se libere.** `buildWorld()` alloue sur le GPU et Three.js ne rend
+8. **Le plongeur se genere.** `src/diver.js` construit son corps depuis un champ
+   de distance, une fois, puis clone la geometrie du cache a chaque run. Les bras
+   sont ecartes du buste au repos pour que la peau ne se soude pas : les
+   rapprocher ramene la palme sombre sous l'aisselle des que la croix s'ouvre.
+9. **Une scene se libere.** `buildWorld()` alloue sur le GPU et Three.js ne rend
    rien tout seul : tout monde remplace passe par `world.dispose()`, et ce qui
    sort de la scene avant elle se libere lui-meme (`disposeTree`).
 

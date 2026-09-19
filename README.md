@@ -13,6 +13,8 @@ Un seul bouton : **Espace** au clavier, **tap** n'importe où sur mobile.
 3. En l'air il part en **død**, bras en croix. Chaque dixième de seconde passé ouvert rapporte des points de style.
 4. **Refermer au dernier moment.** Trop tôt c'est un chicken, trop tard c'est un smack, et un smack termine le run.
 
+Deux timings GREAT ou mieux d'affilée valent x1,2, trois valent x1,5 : la série s'affiche dans le HUD et le bonus s'applique au saut qui la porte.
+
 Un run vaut 3 sauts. Le record de chaque spot est gardé dans le navigateur.
 
 Le bouton en bas à gauche coupe le son, et la coupure est gardée d'une partie à l'autre. Si l'onglet passe en arrière plan pendant un saut, le jeu se met en pause et attend une action pour repartir au même endroit.
@@ -30,6 +32,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.2 | pause quand l'onglet passe en arrière plan, coupure du son mémorisée, vibration mobile, respect de `prefers-reduced-motion` |
 | v1.3 | écart au parfait affiché avec une jauge de fenêtre, ralenti sur un PERFECT DØDS, liste des spots au clavier, mondes libérés entre deux runs |
 | v1.4 | gerbe d'entrée refaite, mer vivante avec onde d'impact, ombre du plongeur sur l'eau, strates et ligne d'eau sur la falaise |
+| v1.5 | plongeur en 3D d'un seul tenant, peau lissée et squelette, multiplicateur de série sur le run |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 
@@ -42,6 +45,7 @@ Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la bran
 - **Three.js arrive par importmap depuis cdnjs**, version épinglée. Aucune dépendance npm, aucun build, aucun asset : tout est généré (falaise, eau, plongeur, son).
 - **L'ordre des rotations d'Euler compte pour le plongeur** : `rotation.y` est appliqué avant `rotation.x`, donc une fois le corps basculé à l'horizontale, `y` agit comme un roll autour de l'axe du corps. C'est ce qui rend la croix des bras lisible depuis une caméra latérale, sans quoi les bras pointent vers l'objectif et disparaissent.
 - **La lumière d'un spot doit éclairer la face visible.** La caméra est toujours en x négatif : un soleil placé derrière la falaise rendait toutes les faces avant grises et verdâtres, teintées par la lumière hémisphérique. Chaque `sunPos` de `src/spots.js` pointe donc vers la caméra, et une lumière de remplissage sans ombre complète.
+- **Le plongeur est généré, pas chargé.** Son corps sort d'un champ de distance maillé par surface nets, avec skinning sur dix os. La géométrie coûte environ 165 ms une fois au chargement, puis elle est mise en cache et clonée par run : `disposeTree()` libère le clone sans vider le cache. Écarter les bras du buste dans la pose de repos n'est pas cosmétique, c'est ce qui empêche la peau de se souder et de tendre une palme quand la croix du døds s'ouvre.
 - **Three.js ne libère rien tout seul.** `buildWorld()` crée une scène complète à chaque run. Sans `world.dispose()`, les géométries, matériaux, textures et shadow maps restent sur le GPU : c'était 27 géométries de plus par run, jusqu'à la perte du contexte WebGL sur mobile. `disposeTree()` de `src/world.js` fait le ménage, et tout ce qui sort de la scène avant elle, comme le rig du plongeur, doit se libérer lui-même.
 - **Le niveau de l'eau est y = 0 pour la physique**, les vagues du shader et l'onde laissée par l'entrée du plongeur sont purement visuelles (±0,3 m) : les faire compter décalerait le timing parfait sans que le joueur puisse le prévoir.
 - **L'eau projetée n'est pas éclairée.** La gerbe, la couronne et les anneaux sont en matériau non éclairé : un matériau standard les rendait grises dans un fjord à l'ombre, où la colonne ressemblait à un poteau de béton.
@@ -107,7 +111,7 @@ racine.
 | `src/main.js` | machine d'états des écrans, boucle, HUD, sauvegarde |
 | `src/game.js` | physique du saut, fenêtres de timing, scoring, caméras |
 | `src/world.js` | ciel, eau (shader), falaise procédurale, plateformes, décor |
-| `src/diver.js` | rig du plongeur et ses poses |
+| `src/diver.js` | le plongeur : corps généré depuis un champ de distance, squelette, poses |
 | `src/spots.js` | les 6 spots : hauteur, difficulté, palette, plateforme |
 | `src/fx.js` | gerbe d'eau, gouttes, anneau de surface |
 | `src/audio.js` | sons synthétisés, aucun fichier chargé |

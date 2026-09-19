@@ -48,12 +48,14 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
 - [x] **L'ombre du plongeur sur l'eau**, qui sert aussi de repere de hauteur.
 - [x] **Strates et ligne d'eau sur la falaise.**
 
-## v1.5, contenu
+## v1.5, serie et personnage (livre)
 
-- [ ] **Multiplicateur de serie sur le run.** `src/game.js`, `src/main.js`. Deux
-  timings GREAT ou mieux d'affilee valent x1,2, trois valent x1,5. Le troisieme
-  saut devient un choix entre assurer et tenter.
-  Acceptation : la serie se voit dans le HUD, et le bilan detaille son effet.
+- [x] **Multiplicateur de serie sur le run.** Deux GREAT ou mieux d'affilee
+  valent x1,2, trois valent x1,5, visible dans le HUD et detaille au bilan.
+- [x] **Un vrai plongeur en 3D.** Peau d'un seul tenant generee depuis un champ
+  de distance, squelette a dix os, skinning GPU. Toujours zero fichier charge.
+
+## v1.6, contenu
 
 - [ ] **Un septieme spot.** `src/spots.js`. Hauteur entre 18 et 24 m pour combler
   le trou du milieu de la carte, palette coherente, `sunPos` vers la camera
