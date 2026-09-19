@@ -39,7 +39,21 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
   fuyaient par run.
 - [x] **Dette : la liste des spots est accessible au clavier.**
 
-## v1.4, contenu
+## v1.4, la claque visuelle (livre)
+
+- [x] **La gerbe d'entree refaite.** Colonne non eclairee, couronne evasee, deux
+  nuages de gouttes, anneaux fins.
+- [x] **La mer vivante.** Lobe large du soleil, reflet du ciel a angle rasant,
+  ecume adoucie, onde circulaire lancee par l'entree du plongeur.
+- [x] **L'ombre du plongeur sur l'eau**, qui sert aussi de repere de hauteur.
+- [x] **Strates et ligne d'eau sur la falaise.**
+
+## v1.5, contenu
+
+- [ ] **Multiplicateur de serie sur le run.** `src/game.js`, `src/main.js`. Deux
+  timings GREAT ou mieux d'affilee valent x1,2, trois valent x1,5. Le troisieme
+  saut devient un choix entre assurer et tenter.
+  Acceptation : la serie se voit dans le HUD, et le bilan detaille son effet.
 
 - [ ] **Un septieme spot.** `src/spots.js`. Hauteur entre 18 et 24 m pour combler
   le trou du milieu de la carte, palette coherente, `sunPos` vers la camera

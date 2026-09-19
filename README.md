@@ -29,6 +29,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.1 | cadrage corrigé en portrait : le champ s'élargit quand l'écran est plus haut que large |
 | v1.2 | pause quand l'onglet passe en arrière plan, coupure du son mémorisée, vibration mobile, respect de `prefers-reduced-motion` |
 | v1.3 | écart au parfait affiché avec une jauge de fenêtre, ralenti sur un PERFECT DØDS, liste des spots au clavier, mondes libérés entre deux runs |
+| v1.4 | gerbe d'entrée refaite, mer vivante avec onde d'impact, ombre du plongeur sur l'eau, strates et ligne d'eau sur la falaise |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 
@@ -42,7 +43,8 @@ Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la bran
 - **L'ordre des rotations d'Euler compte pour le plongeur** : `rotation.y` est appliqué avant `rotation.x`, donc une fois le corps basculé à l'horizontale, `y` agit comme un roll autour de l'axe du corps. C'est ce qui rend la croix des bras lisible depuis une caméra latérale, sans quoi les bras pointent vers l'objectif et disparaissent.
 - **La lumière d'un spot doit éclairer la face visible.** La caméra est toujours en x négatif : un soleil placé derrière la falaise rendait toutes les faces avant grises et verdâtres, teintées par la lumière hémisphérique. Chaque `sunPos` de `src/spots.js` pointe donc vers la caméra, et une lumière de remplissage sans ombre complète.
 - **Three.js ne libère rien tout seul.** `buildWorld()` crée une scène complète à chaque run. Sans `world.dispose()`, les géométries, matériaux, textures et shadow maps restent sur le GPU : c'était 27 géométries de plus par run, jusqu'à la perte du contexte WebGL sur mobile. `disposeTree()` de `src/world.js` fait le ménage, et tout ce qui sort de la scène avant elle, comme le rig du plongeur, doit se libérer lui-même.
-- **Le niveau de l'eau est y = 0 pour la physique**, les vagues du shader sont purement visuelles (±0,3 m) : les faire compter décalerait le timing parfait sans que le joueur puisse le prévoir.
+- **Le niveau de l'eau est y = 0 pour la physique**, les vagues du shader et l'onde laissée par l'entrée du plongeur sont purement visuelles (±0,3 m) : les faire compter décalerait le timing parfait sans que le joueur puisse le prévoir.
+- **L'eau projetée n'est pas éclairée.** La gerbe, la couronne et les anneaux sont en matériau non éclairé : un matériau standard les rendait grises dans un fjord à l'ombre, où la colonne ressemblait à un poteau de béton.
 
 ## Tester
 
