@@ -29,18 +29,23 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
   Secousse de camera et flash divises par quatre quand la preference est active.
   Acceptation : la partie reste jouable et lisible, le scoring ne change pas.
 
-## v1.3, contenu
+## v1.3, lecture du geste (livre)
+
+- [x] **Ecart au parfait et jauge de fenetre.** Hors feuille de route initiale :
+  l'etiquette seule ne disait pas de combien on avait rate.
+- [x] **Ralenti sur l'impact.** Etendu a la gerbe, et `__dods.slowmo` coupe
+  l'effet pour un test deterministe.
+- [x] **Dette : les mondes sont liberes entre deux runs.** 27 geometries
+  fuyaient par run.
+- [x] **Dette : la liste des spots est accessible au clavier.**
+
+## v1.4, contenu
 
 - [ ] **Un septieme spot.** `src/spots.js`. Hauteur entre 18 et 24 m pour combler
   le trou du milieu de la carte, palette coherente, `sunPos` vers la camera
   (x negatif), plateforme parmi `board`, `bridge`, `rock`, `terrace`.
   Acceptation : le controle "spots complets" de `check.sh` passe, la lumiere
   n'est pas grise a l'ecran.
-
-- [ ] **Ralenti sur l'impact.** `src/game.js`, `src/main.js`. Sur un PERFECT
-  DODS, 0,35 s a vitesse 0,35 juste avant l'entree dans l'eau, puis retour
-  normal. Le temps ralenti ne doit pas entrer dans le calcul du style.
-  Acceptation : `__dods.tick()` donne le meme score avec et sans ralenti.
 
 - [ ] **Partage du score de run.** `index.html`, `src/main.js`. Sur l'ecran de
   fin, un bouton qui copie "DODS 3000, <spot>, <score> pts" plus le lien du jeu,

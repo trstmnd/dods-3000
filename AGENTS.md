@@ -50,6 +50,9 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
 6. **`VERSION` dans `src/main.js` se bumpe a chaque livraison**, et la ligne du
    tableau des versions du README se remplit.
 7. **Pas de dependance npm, pas d'etape de build, pas de fichier binaire.**
+8. **Une scene se libere.** `buildWorld()` alloue sur le GPU et Three.js ne rend
+   rien tout seul : tout monde remplace passe par `world.dispose()`, et ce qui
+   sort de la scene avant elle se libere lui-meme (`disposeTree`).
 
 ## Boucle de travail
 
@@ -93,4 +96,6 @@ changent la facture :
 - Une tache de la feuille de route a la fois, dans une session neuve. Les
   longues sessions repayent tout le contexte a chaque tour.
 - `./check.sh` en premier reflexe plutot que de faire relire le code au modele.
+- Le pilotage par `window.__dods` verifie une regle de jeu en une ligne, la ou
+  faire relire la boucle au modele coute cent fois plus.
 - Rien a coller dans le prompt : les invariants sont ici, pas dans la conversation.
