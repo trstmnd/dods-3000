@@ -202,6 +202,12 @@ function updateHud() {
   }
 }
 
+/* ---------- mouvement reduit ---------- */
+// La preference est lue a chaque usage, donc un changement systeme s'applique sans rechargement.
+// Elle n'agit que sur la camera et le flash : la physique et le score restent identiques.
+const REDUCED = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+function motionScale() { return REDUCED && REDUCED.matches ? 0.25 : 1; }
+
 /* ---------- retour haptique ---------- */
 // navigator.vibrate manque sur desktop et sur iOS : on sort sans bruit.
 // Le bouton du son commande aussi la vibration, c'est le meme reflexe de discretion.
@@ -300,8 +306,9 @@ function frame(dt, t) {
     if (splash) splash.update(dt);
     updateHud();
     if (shake > 0.01) {
-      camera.position.x += (Math.random() - 0.5) * shake * 0.55;
-      camera.position.y += (Math.random() - 0.5) * shake * 0.55;
+      const amp = shake * 0.55 * motionScale();
+      camera.position.x += (Math.random() - 0.5) * amp;
+      camera.position.y += (Math.random() - 0.5) * amp;
     }
   } else if (splash) splash.update(dt);
   renderer.render(world.scene, camera);
