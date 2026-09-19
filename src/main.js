@@ -137,6 +137,38 @@ function nextJump() {
   jump.onDone = onJumpDone;
 }
 
+/* ---------- lecture du timing ---------- */
+// GOOD ou EARLY ne dit pas si on a manque de 30 ms ou de 300. L'ecart au parfait et
+// la jauge situent la fermeture dans la fenetre : c'est ce qui rend le geste apprenable.
+const sec = v => v.toFixed(2).replace('.', ',');
+
+function timingText(res) {
+  const w = res.win;
+  if (!res.tucked) return 'jamais refermé';
+  if (res.ttc < w.perfectLo) return sec(w.perfectLo - res.ttc) + ' s trop tard';
+  if (res.ttc <= w.perfectHi) return 'au cœur de la fenêtre';
+  return sec(res.ttc - w.perfectHi) + ' s trop tôt';
+}
+
+// L'axe va de la fermeture la plus precoce, a gauche, a l'entree dans l'eau, a droite.
+function drawGauge(res) {
+  const w = res.win;
+  const scale = w.goodHi;
+  const x = ttc => Math.max(0, Math.min(100, (1 - ttc / scale) * 100));
+  const band = (sel, lo, hi) => {
+    const el = $('#jr-gauge .g-zone.' + sel);
+    el.style.left = x(hi) + '%';
+    el.style.width = Math.max(0, x(lo) - x(hi)) + '%';
+  };
+  band('good', w.greatHi, w.goodHi);
+  band('great', w.perfectHi, w.greatHi);
+  band('perfect', w.perfectLo, w.perfectHi);
+  band('smack', 0, w.perfectLo);
+  const mark = $('#jr-gauge .g-mark');
+  mark.style.left = (res.tucked ? x(res.ttc) : 100) + '%';
+  mark.style.background = res.grade.color;
+}
+
 function onJumpDone(res) {
   state.last = res;
   if (res.dead) buzz([40, 60, 40]);
@@ -148,6 +180,9 @@ function onJumpDone(res) {
   $('#jr-sub').textContent = res.dead
     ? 'À plat. Le run s\'arrête là.'
     : `${res.takeoff.label} · ${res.air.toFixed(2)} s en l\'air`;
+  $('#jr-timing').textContent = timingText(res);
+  $('#jr-timing').style.color = res.grade.color;
+  drawGauge(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
     <li><span>Base ${res.height} m</span><b>${res.base}</b></li>
     <li><span>Style, ${res.air.toFixed(2)} s en døds</span><b>+${res.style}</b></li>

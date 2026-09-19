@@ -184,7 +184,9 @@ export class Jump {
     this.result = {
       dead, grade: this.grade, base, style, score,
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
-      height: this.spot.height
+      height: this.spot.height,
+      // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
+      win: this.win, tucked: this.tucked
     };
   }
 
