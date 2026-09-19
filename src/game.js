@@ -22,8 +22,23 @@ export const TUNING = {
     { key: 'smack', label: 'SMACK', mult: 0, color: '#ff4d5e' }
   ],
   styleRate: 46,
-  baseRate: 12
+  baseRate: 12,
+  // Serie : deux GREAT ou mieux d'affilee, puis trois. Le troisieme saut devient un choix
+  // entre assurer et tenter, la ou trois sauts independants ne faisaient qu'une addition.
+  streak: [
+    { min: 2, mult: 1.2, label: 'SÉRIE x2' },
+    { min: 3, mult: 1.5, label: 'SÉRIE x3' }
+  ],
+  streakFrom: 2.0
 };
+
+// Un saut compte pour la serie quand son multiplicateur de timing vaut au moins GREAT.
+export function keepsStreak(grade) { return !!grade && grade.mult >= TUNING.streakFrom; }
+export function streakBonus(n) {
+  let best = null;
+  for (const s of TUNING.streak) if (n >= s.min) best = s;
+  return best;
+}
 
 function windows(height) {
   // plus le spot est haut, plus la fenetre est serree

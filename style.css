@@ -103,6 +103,10 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
 .hud-cell.center{text-align:center;flex:1}
 .hud-cell.center b{color:var(--accent)}
 .hud-cell.right{text-align:right}
+#hud-streak{color:var(--good);font-weight:800;opacity:0;letter-spacing:.2em;font-size:10px;
+  transition:opacity .2s ease}
+#hud-streak.on{opacity:1}
+#hud-streak.dim{opacity:.45}
 
 #runbar{position:absolute;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));transform:translateX(-50%);
   width:min(320px,70vw);height:12px;border-radius:99px;background:rgba(0,0,0,.45);overflow:hidden;
