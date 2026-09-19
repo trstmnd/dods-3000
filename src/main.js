@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.1';
+export const VERSION = 'v1.2';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
@@ -32,6 +32,24 @@ function loadSave() {
 }
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { } }
 function totalScore() { return Object.values(save.best).reduce((a, b) => a + b, 0); }
+
+/* ---------- son ---------- */
+// L'etat vit dans la meme sauvegarde que les records, donc il survit au rechargement.
+function setMuted(v) {
+  save.muted = !!v;
+  persist();
+  audio.setMuted(save.muted);
+  const b = $('#sound');
+  b.classList.toggle('muted', save.muted);
+  b.setAttribute('aria-pressed', save.muted ? 'true' : 'false');
+  b.title = save.muted ? 'Rétablir le son' : 'Couper le son';
+}
+$('#sound').addEventListener('click', () => {
+  const next = !save.muted;
+  setMuted(next);
+  if (!next) { audio.unlock(); audio.ui(); }
+});
+setMuted(!!save.muted);
 
 /* ---------- ecrans ---------- */
 const screens = ['title', 'spots', 'brief', 'run', 'jump', 'end'];
@@ -87,6 +105,7 @@ function startRun() {
 }
 
 function nextJump() {
+  setPause(false);
   state.jumpIndex++;
   jump.reset();
   $('#hud-jump').textContent = `${state.jumpIndex}/${JUMPS_PER_RUN}`;
@@ -99,6 +118,7 @@ function nextJump() {
 
 function onJumpDone(res) {
   state.last = res;
+  if (res.dead) buzz([40, 60, 40]);
   state.runScore += res.score;
   $('#hud-score').textContent = state.runScore;
   audio.grade(res.dead ? 0 : res.grade.mult);
@@ -182,9 +202,48 @@ function updateHud() {
   }
 }
 
+/* ---------- mouvement reduit ---------- */
+// La preference est lue a chaque usage, donc un changement systeme s'applique sans rechargement.
+// Elle n'agit que sur la camera et le flash : la physique et le score restent identiques.
+const REDUCED = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+function motionScale() { return REDUCED && REDUCED.matches ? 0.25 : 1; }
+
+/* ---------- retour haptique ---------- */
+// navigator.vibrate manque sur desktop et sur iOS : on sort sans bruit.
+// Le bouton du son commande aussi la vibration, c'est le meme reflexe de discretion.
+function buzz(pattern) {
+  if (save.muted || typeof navigator.vibrate !== 'function') return;
+  try { navigator.vibrate(pattern); } catch { }
+}
+
+/* ---------- pause ---------- */
+// L'onglet en arriere plan ralentit requestAnimationFrame : sans pause, le joueur
+// revient sur un smack qu'il n'a pas vu venir. On fige et on attend une action.
+let autoPaused = false;
+
+function inJump() {
+  return !!jump && $('#s-run').classList.contains('on')
+    && !$('#s-jump').classList.contains('on') && !$('#s-end').classList.contains('on')
+    && (jump.state === 'walk' || jump.state === 'fly');
+}
+function paused() { return window.__dods.paused || autoPaused; }
+function setPause(v) {
+  if (autoPaused === v) return;
+  autoPaused = v;
+  $('#pause').classList.toggle('on', v);
+  if (v) audio.setWind(0);
+  else clock.getDelta(); // vide le delta accumule pendant la pause
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && inJump()) setPause(true);
+});
+$('#pause-resume').addEventListener('click', () => { audio.unlock(); audio.ui(); setPause(false); });
+
 /* ---------- entrees ---------- */
 function press() {
   audio.unlock();
+  if (autoPaused) { setPause(false); return; }
   if ($('#s-jump').classList.contains('on') || $('#s-end').classList.contains('on')) return;
   if ($('#s-title').classList.contains('on')) { audio.ui(); show('spots'); buildSpotList(); return; }
   if ($('#s-brief').classList.contains('on')) { audio.ui(); startRun(); return; }
@@ -193,15 +252,17 @@ function press() {
   jump.input();
   if (before === 'walk' && jump.state === 'fly') {
     toast(jump.takeoff.label);
+    buzz(20);
     $('#runbar').classList.remove('on');
   } else if (jump.tucked && jump.grade) {
     callout(jump.grade.label, jump.grade.color);
+    buzz(jump.grade.key === 'smack' ? [40, 60, 40] : 30);
   }
 }
 
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'Enter' || e.key === ' ') { e.preventDefault(); press(); }
-  if (e.code === 'Escape' && $('#s-run').classList.contains('on')) show('spots');
+  if (e.code === 'Escape' && $('#s-run').classList.contains('on')) { setPause(false); show('spots'); }
 });
 canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -239,13 +300,15 @@ function frame(dt, t) {
   if (jump && $('#s-run').classList.contains('on')) {
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
-    if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) press();
+    if (dt <= 0) { /* fige : pas d'entree automatique */ }
+    else if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) press();
     else if (A.autoTuck != null && jump.state === 'fly' && !jump.tucked && jump.ttc <= A.autoTuck) press();
     if (splash) splash.update(dt);
     updateHud();
     if (shake > 0.01) {
-      camera.position.x += (Math.random() - 0.5) * shake * 0.55;
-      camera.position.y += (Math.random() - 0.5) * shake * 0.55;
+      const amp = shake * 0.55 * motionScale();
+      camera.position.x += (Math.random() - 0.5) * amp;
+      camera.position.y += (Math.random() - 0.5) * amp;
     }
   } else if (splash) splash.update(dt);
   renderer.render(world.scene, camera);
@@ -255,7 +318,7 @@ function frame(dt, t) {
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, clock.getDelta());
-  frame(window.__dods.paused ? 0 : dt, clock.elapsedTime);
+  frame(paused() ? 0 : dt, clock.elapsedTime);
 }
 
 // Avance la simulation d'un nombre de pas fixes, sans dependre du rafraichissement ecran.

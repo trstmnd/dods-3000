@@ -1,6 +1,8 @@
 // Son entierement synthetise : aucun fichier a charger, aucune requete reseau.
 export function createAudio() {
   let ctx = null, master = null, wind = null, windGain = null;
+  let muted = false;
+  const VOLUME = 0.55;
 
   function noiseBuffer(sec = 2) {
     const n = ctx.sampleRate * sec;
@@ -16,7 +18,7 @@ export function createAudio() {
     if (!AC) return false;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.55;
+    master.gain.value = muted ? 0 : VOLUME;
     master.connect(ctx.destination);
     const src = ctx.createBufferSource();
     src.buffer = noiseBuffer(3); src.loop = true;
@@ -62,6 +64,9 @@ export function createAudio() {
       if (dead) blip(90, 0.3, 'sawtooth', 0.3, -40);
     },
     grade(mult) { if (mult >= 2) { blip(660, 0.1, 'triangle', 0.2); setTimeout(() => blip(990, 0.16, 'triangle', 0.2), 90); } },
-    setWind(v) { if (windGain) windGain.gain.value = Math.min(0.5, v * 0.5); }
+    setWind(v) { if (windGain) windGain.gain.value = Math.min(0.5, v * 0.5); },
+    // Coupure globale au master : le vent en boucle passe par la aussi.
+    setMuted(v) { muted = !!v; if (master) master.gain.value = muted ? 0 : VOLUME; return muted; },
+    get muted() { return muted; }
   };
 }

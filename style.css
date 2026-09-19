@@ -13,6 +13,23 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
 #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#fff;transition:opacity .35s ease}
 #flash.red{background:#ff2b3d}
 #flash.on{opacity:.85;transition:opacity .04s}
+/* Mouvement reduit : le flash rouge du smack tombe au quart, il informe sans agresser.
+   Le clignotement du prompt reste, c'est un signal de jeu et non un effet. */
+@media (prefers-reduced-motion: reduce){
+  #flash.on{opacity:.21}
+}
+
+#sound{position:fixed;z-index:30;left:var(--pad);bottom:calc(var(--pad) + env(safe-area-inset-bottom));
+  width:44px;height:44px;padding:0;display:grid;place-items:center;opacity:.55;transition:opacity .15s ease}
+#sound:hover{opacity:.95}
+#sound svg{width:22px;height:22px}
+#sound .horn{fill:currentColor}
+#sound .wave,#sound .slash{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}
+#sound .slash{display:none}
+#sound.muted{opacity:.85;color:var(--hot)}
+#sound.muted .wave{display:none}
+#sound.muted .slash{display:block}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:var(--deep);
   font-size:13px;letter-spacing:.3em;text-transform:uppercase;opacity:.7;z-index:50}
@@ -91,6 +108,13 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block}
 #runbar.on{display:block}
 #runbar-fill{height:100%;width:0;background:var(--cool);border-radius:99px}
 #runbar-zone{position:absolute;top:0;height:100%;background:rgba(94,240,168,.55);border-left:2px solid var(--good);border-right:2px solid var(--good)}
+
+#pause{position:absolute;inset:0;display:none;place-items:center;pointer-events:auto;
+  background:rgba(4,14,26,.72);backdrop-filter:blur(6px);z-index:12}
+#pause.on{display:grid}
+.pause-card{text-align:center;max-width:340px}
+.pause-card h2{margin:0 0 6px;font-size:clamp(22px,7vw,34px);font-weight:900;letter-spacing:.04em}
+.pause-card p{margin:0 0 18px;opacity:.75;font-size:12px;letter-spacing:.1em;line-height:1.5}
 
 #tuckring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(210px,52vw);aspect-ratio:1;display:none}
 #tuckring.on{display:block}
