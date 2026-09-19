@@ -247,6 +247,28 @@ function decor(spot, group, rnd) {
   if (kind) for (let i = 0; i < 9; i++) tree((rnd() - 0.5) * 40, -6 - rnd() * 30, kind);
 }
 
+// Three.js ne libere rien tout seul. Sans ce passage, chaque run laissait sa falaise,
+// sa mer, son decor et sa shadow map sur le GPU : framerate en baisse puis contexte
+// WebGL perdu au bout de quelques runs sur mobile.
+function disposeMaterial(mat) {
+  for (const v of Object.values(mat)) if (v && v.isTexture) v.dispose();
+  if (mat.uniforms) for (const u of Object.values(mat.uniforms)) {
+    if (u && u.value && u.value.isTexture) u.value.dispose();
+  }
+  mat.dispose();
+}
+
+export function disposeTree(root) {
+  root.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if (Array.isArray(m)) m.forEach(disposeMaterial);
+    else if (m) disposeMaterial(m);
+    if (o.shadow && o.shadow.map) { o.shadow.map.dispose(); o.shadow.map = null; }
+  });
+  root.clear();
+}
+
 export function buildWorld(spot, renderer) {
   const pal = spot.palette;
   const rnd = mulberry32(seedFromString(spot.id) ^ 0x9e37);
@@ -286,5 +308,5 @@ export function buildWorld(spot, renderer) {
   decor(spot, cliffGroup, rnd);
   scene.add(cliffGroup);
 
-  return { scene, water, waterMat, sun, sunDir };
+  return { scene, water, waterMat, sun, sunDir, dispose() { disposeTree(scene); } };
 }

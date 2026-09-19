@@ -92,7 +92,9 @@ function openBrief(spot) {
 
 /* ---------- run ---------- */
 function startRun() {
+  // L'ordre compte : le plongeur et la gerbe vivent dans la scene, donc ils partent avec elle.
   if (jump) { jump.dispose(); jump = null; }
+  if (world) { world.dispose(); world = null; splash = null; }
   const spot = state.spot;
   world = buildWorld(spot, renderer);
   splash = createSplash(world.scene);
