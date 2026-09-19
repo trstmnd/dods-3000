@@ -41,6 +41,7 @@ export class Jump {
     this.spot = spot; this.scene = scene; this.camera = camera; this.splash = splash; this.audio = audio;
     this.diver = createDiver();
     scene.add(this.diver.root);
+    scene.add(this.diver.blob);
     this.win = windows(spot.height);
     this.shake = 0;
     this.reset();
@@ -156,13 +157,34 @@ export class Jump {
     }
 
     d.root.position.copy(this.pos);
-    d.blob.visible = this.state === 'walk';
-    if (this.state === 'walk') d.blob.position.set(0, -this.pos.y + this.spot.height + 0.02, 0);
+    this.placeBlob();
 
     this.shake = Math.max(0, this.shake - dt * 3.2);
     this.placeCamera(Math.min(1, dt * (this.state === 'impact' ? 3.4 : 6)));
     if (camShakeOut) camShakeOut(this.shake);
     return this.state;
+  }
+
+  // L'ombre grandit et palit avec l'altitude, puis se resserre et se fonce a l'approche :
+  // un deuxieme repere de timing, lisible du coin de l'oeil pendant que l'anneau de tuck
+  // demande de quitter le plongeur des yeux.
+  placeBlob() {
+    const b = this.diver.blob, m = b.userData;
+    if (this.state === 'walk') {
+      b.visible = true;
+      b.position.set(this.pos.x, this.spot.height + 0.02, this.pos.z);
+      b.scale.setScalar(1);
+      m.disc.opacity = 0.28; m.halo.opacity = 0;
+      return;
+    }
+    if (this.state !== 'fly') { b.visible = false; return; }
+    const h = Math.max(0, this.pos.y);
+    b.visible = true;
+    b.position.set(this.pos.x, 0.07, this.pos.z);
+    b.scale.setScalar(1 + h * 0.085);
+    const near = THREE.MathUtils.clamp(1 - h / 42, 0.12, 1);
+    m.disc.opacity = 0.34 * near;
+    m.halo.opacity = 0.42 * near;
   }
 
   land() {
@@ -240,5 +262,7 @@ export class Jump {
   }
 
   // Le rig sort de la scene, donc la liberation de celle-ci ne le verrait plus passer.
-  dispose() { this.scene.remove(this.diver.root); disposeTree(this.diver.root); }
+  dispose() {
+    for (const o of [this.diver.root, this.diver.blob]) { this.scene.remove(o); disposeTree(o); }
+  }
 }
