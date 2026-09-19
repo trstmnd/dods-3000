@@ -3,10 +3,10 @@ import { SPOTS, DIFF_LABEL, spotById } from './spots.js';
 import { buildWorld } from './world.js';
 import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
-import { Jump } from './game.js';
+import { Jump, keepsStreak, streakBonus } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.4';
+export const VERSION = 'v1.5';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
@@ -23,7 +23,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 1600);
 let world = null, jump = null, splash = null;
-let state = { spot: SPOTS[0], jumpIndex: 0, runScore: 0, last: null };
+let state = { spot: SPOTS[0], jumpIndex: 0, runScore: 0, last: null, streak: 0 };
 const save = loadSave();
 
 function loadSave() {
@@ -120,6 +120,7 @@ function startRun() {
   jump = new Jump(spot, world.scene, camera, splash, audio);
   state.jumpIndex = 0;
   state.runScore = 0;
+  state.streak = 0;
   $('#hud-spot').textContent = spot.name.toUpperCase();
   nextJump();
   show('run');
@@ -131,6 +132,7 @@ function nextJump() {
   jump.reset();
   $('#hud-jump').textContent = `${state.jumpIndex}/${JUMPS_PER_RUN}`;
   $('#hud-score').textContent = state.runScore;
+  showStreak();
   $('#runbar').classList.add('on');
   $('#tuckring').classList.remove('on');
   setPrompt('ESPACE AU BORD', true);
@@ -169,10 +171,28 @@ function drawGauge(res) {
   mark.style.background = res.grade.color;
 }
 
+// La serie se compte sur les timings GREAT ou mieux. Elle se casse au premier rate,
+// et le bonus s'applique au saut qui la porte, pas retroactivement : le joueur voit
+// tout de suite ce que son troisieme saut vaut de plus.
+function showStreak() {
+  const b = streakBonus(state.streak);
+  const el = $('#hud-streak');
+  el.textContent = b ? b.label : (state.streak === 1 ? 'SÉRIE x1' : '');
+  el.classList.toggle('on', !!b);
+  el.classList.toggle('dim', !b && state.streak === 1);
+}
+
 function onJumpDone(res) {
   state.last = res;
   if (res.dead) buzz([40, 60, 40]);
-  state.runScore += res.score;
+  const broken = state.streak >= 2 && !keepsStreak(res.grade);
+  state.streak = !res.dead && keepsStreak(res.grade) ? state.streak + 1 : 0;
+  const bonus = streakBonus(state.streak);
+  const gained = bonus ? Math.round(res.score * bonus.mult) : res.score;
+  state.runScore += gained;
+  showStreak();
+  if (bonus) callout(bonus.label, '#5ef0a8');
+  else if (broken) toast('SÉRIE PERDUE');
   $('#hud-score').textContent = state.runScore;
   audio.grade(res.dead ? 0 : res.grade.mult);
   $('#jr-grade').textContent = res.grade.label;
@@ -188,7 +208,8 @@ function onJumpDone(res) {
     <li><span>Style, ${res.air.toFixed(2)} s en døds</span><b>+${res.style}</b></li>
     <li><span>Timing ${res.grade.label}</span><b>x${res.grade.mult}</b></li>
     <li><span>${res.takeoff.label}</span><b>x${res.takeoff.mult}</b></li>
-    <li class="total"><span>Saut ${state.jumpIndex}</span><b>${res.score}</b></li>`;
+    ${bonus ? `<li><span>${bonus.label}</span><b>x${bonus.mult}</b></li>` : ''}
+    <li class="total"><span>Saut ${state.jumpIndex}</span><b>${gained}</b></li>`;
   const finished = res.dead || state.jumpIndex >= JUMPS_PER_RUN;
   $('#jr-next').textContent = finished ? 'BILAN' : 'SAUT SUIVANT';
   $('#jr-next').onclick = () => { audio.ui(); finished ? endRun(res.dead) : (show('run'), nextJump()); };
