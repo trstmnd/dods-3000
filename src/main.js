@@ -87,6 +87,7 @@ function startRun() {
 }
 
 function nextJump() {
+  setPause(false);
   state.jumpIndex++;
   jump.reset();
   $('#hud-jump').textContent = `${state.jumpIndex}/${JUMPS_PER_RUN}`;
@@ -182,9 +183,34 @@ function updateHud() {
   }
 }
 
+/* ---------- pause ---------- */
+// L'onglet en arriere plan ralentit requestAnimationFrame : sans pause, le joueur
+// revient sur un smack qu'il n'a pas vu venir. On fige et on attend une action.
+let autoPaused = false;
+
+function inJump() {
+  return !!jump && $('#s-run').classList.contains('on')
+    && !$('#s-jump').classList.contains('on') && !$('#s-end').classList.contains('on')
+    && (jump.state === 'walk' || jump.state === 'fly');
+}
+function paused() { return window.__dods.paused || autoPaused; }
+function setPause(v) {
+  if (autoPaused === v) return;
+  autoPaused = v;
+  $('#pause').classList.toggle('on', v);
+  if (v) audio.setWind(0);
+  else clock.getDelta(); // vide le delta accumule pendant la pause
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && inJump()) setPause(true);
+});
+$('#pause-resume').addEventListener('click', () => { audio.unlock(); audio.ui(); setPause(false); });
+
 /* ---------- entrees ---------- */
 function press() {
   audio.unlock();
+  if (autoPaused) { setPause(false); return; }
   if ($('#s-jump').classList.contains('on') || $('#s-end').classList.contains('on')) return;
   if ($('#s-title').classList.contains('on')) { audio.ui(); show('spots'); buildSpotList(); return; }
   if ($('#s-brief').classList.contains('on')) { audio.ui(); startRun(); return; }
@@ -201,7 +227,7 @@ function press() {
 
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'Enter' || e.key === ' ') { e.preventDefault(); press(); }
-  if (e.code === 'Escape' && $('#s-run').classList.contains('on')) show('spots');
+  if (e.code === 'Escape' && $('#s-run').classList.contains('on')) { setPause(false); show('spots'); }
 });
 canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
 document.querySelectorAll('[data-go]').forEach(b => {
@@ -239,7 +265,8 @@ function frame(dt, t) {
   if (jump && $('#s-run').classList.contains('on')) {
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
-    if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) press();
+    if (dt <= 0) { /* fige : pas d'entree automatique */ }
+    else if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) press();
     else if (A.autoTuck != null && jump.state === 'fly' && !jump.tucked && jump.ttc <= A.autoTuck) press();
     if (splash) splash.update(dt);
     updateHud();
@@ -255,7 +282,7 @@ function frame(dt, t) {
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, clock.getDelta());
-  frame(window.__dods.paused ? 0 : dt, clock.elapsedTime);
+  frame(paused() ? 0 : dt, clock.elapsedTime);
 }
 
 // Avance la simulation d'un nombre de pas fixes, sans dependre du rafraichissement ecran.
