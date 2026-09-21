@@ -35,6 +35,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.5 | plongeur en 3D d'un seul tenant, peau lissée et squelette, multiplicateur de série sur le run |
 | v1.6 | entrée dans l'eau refaite sur la vraie mécanique : trois formes d'entrée, corps calé sur son point de contact, caméra et HUD qui laissent voir le geste |
 | v1.7 | le geste juste : vol bras et jambes tendus, entrée recroquevillée au dernier moment |
+| v1.8 | la fermeture devient un coup sec : 0,05 s au lieu de 0,15 s |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 

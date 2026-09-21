@@ -70,7 +70,13 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
   des plis aux membres pendants, pas des boules : un dods part bras et jambes
   tendus et se ferme recroqueville au dernier moment.
 
-## v1.8, vers le freestyle
+## v1.8, la fermeture seche (livre)
+
+- [x] **Le recroquevillement passe de 0,15 s a 0,05 s.** Une fermeture tardive
+  entrait dans l'eau a moitie ouverte, et le ralenti d'un perfect etirait encore
+  le mouvement.
+
+## v1.9, vers le freestyle
 
 Le sujet du jeu est le geste, pas le catalogue de spots. La suite va donc vers
 les figures, toujours avec une entree propre a la fin.
