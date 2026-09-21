@@ -7,8 +7,7 @@ commencer : il evite d'ouvrir les 8 modules pour comprendre le projet.
 
 Jeu de dodsing 3D, navigateur, zero build, zero dependance npm. Three.js arrive
 par importmap depuis jsDelivr, version epinglee et verifiee par `integrity` dans
-`index.html`. Tout est genere
-en code : falaise, eau, plongeur, son. Aucun asset binaire.
+`index.html`. Tout est genere en code : falaise, eau, plongeur, son. Aucun asset binaire.
 
 Publie sur https://trstmnd.github.io/dods-3000/ par le workflow
 `.github/workflows/pages.yml` : `main` va a la racine, toute autre branche va
@@ -64,11 +63,19 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    rien tout seul : tout monde remplace passe par `world.dispose()`, et ce qui
    sort de la scene avant elle se libere lui-meme (`disposeTree`).
 
+## Ou regarder avant de commencer
+
+- `JOURNAL.md` : ce qui a ete livre et pourquoi, mes erreurs passees, ce qui est
+  mesure et ce qui ne l'est pas, et la table des constantes de reglage.
+- `ROADMAP.md` : la suite, une tache a la fois.
+- `tools/` : le harnais Chromium qui verifie une regle de jeu ou juge une image.
+
 ## Boucle de travail
 
 ```bash
-./check.sh                  # 28 controles deterministes, ni reseau ni navigateur
+./check.sh                  # 29 controles deterministes, ni reseau ni navigateur
 python3 -m http.server 8012 # puis http://localhost:8012/?cb=<n>
+./tools/run.sh timing.mjs   # les quatre cas de fermeture, dans un vrai navigateur
 ```
 
 Le `?cb=<n>` n'est pas decoratif : le serveur local n'envoie pas de
@@ -107,5 +114,7 @@ changent la facture :
   longues sessions repayent tout le contexte a chaque tour.
 - `./check.sh` en premier reflexe plutot que de faire relire le code au modele.
 - Le pilotage par `window.__dods` verifie une regle de jeu en une ligne, la ou
-  faire relire la boucle au modele coute cent fois plus.
+  faire relire la boucle au modele coute cent fois plus. Les scenarios de
+  `tools/` sont deja ecrits : les relancer coute quelques centaines de tokens,
+  les reecrire en coute des milliers.
 - Rien a coller dans le prompt : les invariants sont ici, pas dans la conversation.

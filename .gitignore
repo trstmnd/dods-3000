@@ -1,2 +1,7 @@
 .DS_Store
 REPRISE.md
+node_modules
+tools/.site
+tools/vendor
+tools/*.png
+tools/package*.json
