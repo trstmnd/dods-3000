@@ -55,13 +55,35 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
 - [x] **Un vrai plongeur en 3D.** Peau d'un seul tenant generee depuis un champ
   de distance, squelette a dix os, skinning GPU. Toujours zero fichier charge.
 
-## v1.6, contenu
+## v1.6, l'entree dans l'eau (livre)
 
-- [ ] **Un septieme spot.** `src/spots.js`. Hauteur entre 18 et 24 m pour combler
-  le trou du milieu de la carte, palette coherente, `sunPos` vers la camera
-  (x negatif), plateforme parmi `board`, `bridge`, `rock`, `terrace`.
-  Acceptation : le controle "spots complets" de `check.sh` passe, la lumiere
-  n'est pas grise a l'ecran.
+- [x] **Les trois formes d'entree du dodsing**, en donnees, nommees au bilan.
+- [x] **Le corps cale sur son point de contact**, gerbe comprise.
+- [x] **L'eau freine au lieu d'effacer** : le corps s'enfonce et la surface se
+  referme dessus.
+- [x] **Camera et HUD qui laissent voir l'entree** : approche dans la derniere
+  seconde, anneau de tuck efface une fois ferme.
+
+## v1.7, vers le freestyle
+
+Le sujet du jeu est le geste, pas le catalogue de spots. La suite va donc vers
+les figures, toujours avec une entree propre a la fin.
+
+- [ ] **Choisir sa forme d'entree.** `src/game.js`, `src/main.js`, `index.html`.
+  La forme suit aujourd'hui la qualite de la fermeture. Au joueur de la choisir
+  en vol, et au scoring de valoriser la difficulte : balle, puis crevette, puis
+  sans les mains.
+  Acceptation : la forme choisie se voit avant l'entree, et le bilan la note.
+
+- [ ] **Une figure en vol.** `src/diver.js`, `src/game.js`. Une rotation tenue
+  pendant la chute, qui doit se finir dans l'axe pour que l'entree compte.
+  Acceptation : la figure se lit depuis la camera laterale, et une figure ratee
+  coute le multiplicateur de forme.
+
+- [ ] **Les trois notes du jury.** `src/main.js`. Anlop, vol, entree, affichees
+  separement au bilan plutot qu'un score unique.
+  Acceptation : les trois notes redonnent le score actuel, sans changer
+  d'echelle ni casser les records.
 
 - [ ] **Partage du score de run.** `index.html`, `src/main.js`. Sur l'ecran de
   fin, un bouton qui copie "DODS 3000, <spot>, <score> pts" plus le lien du jeu,
@@ -71,8 +93,8 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
 
 ## Reserve, a cadrer avant d'attaquer
 
-- Figures alternatives au dods (bras, saltos) : demande des poses dans
-  `src/diver.js` et une deuxieme dimension de scoring. Gros morceau, a decouper.
+- Un septieme spot : ecarte volontairement. Le jeu se joue sur le geste, pas sur
+  le nombre de lieux ; six spots suffisent a couvrir la plage de hauteurs.
 - Mode hors ligne : impossible tel quel, Three.js vient d'un CDN. Il faudrait
   vendorer le module, ce qui va contre la regle "aucun fichier a construire".
 - Classement en ligne : demande un serveur, le projet n'en a pas.

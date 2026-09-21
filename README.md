@@ -33,8 +33,32 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.3 | écart au parfait affiché avec une jauge de fenêtre, ralenti sur un PERFECT DØDS, liste des spots au clavier, mondes libérés entre deux runs |
 | v1.4 | gerbe d'entrée refaite, mer vivante avec onde d'impact, ombre du plongeur sur l'eau, strates et ligne d'eau sur la falaise |
 | v1.5 | plongeur en 3D d'un seul tenant, peau lissée et squelette, multiplicateur de série sur le run |
+| v1.6 | entrée dans l'eau refaite sur la vraie mécanique : trois formes d'entrée, corps calé sur son point de contact, caméra et HUD qui laissent voir le geste |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
+
+## La mécanique du døds
+
+Le jeu suit les critères de jugement de la discipline, pas une idée de plongeon.
+
+1. **L'anløp.** Sortir de la plateforme avec de la vitesse et de la puissance. C'est le multiplicateur de décollage.
+2. **Le vol.** Corps **horizontal et étiré**, bras en croix, jambes serrées. Plus c'est horizontal et tenu longtemps, mieux c'est. Chaque dixième de seconde ouvert rapporte du style.
+3. **La fermeture.** **Le plus tard possible**, et délibérée. C'est toute la tension du jeu.
+4. **L'entrée.** Elle doit être contrôlée dans une des trois formes valides :
+
+| Forme | Ce qui touche l'eau en premier | Dans le jeu |
+|---|---|---|
+| **Crevette** | les mains et les pieds, ensemble | fermeture PERFECT ou GREAT |
+| **Balle** | les genoux et les coudes | fermeture GOOD |
+| **Sans les mains** | les genoux et la tête | pas encore attribuée, elle attend le freestyle |
+
+Fermer trop tôt ne donne aucune forme, juste une **boule** sans puissance. Ne pas fermer du tout, c'est **à plat**, et le ventre prend tout.
+
+Contrairement au plongeon classique, **la puissance de l'entrée est récompensée**, pas la gerbe minimale : une grosse gerbe sur une forme propre est un bon døds.
+
+La forme suit aujourd'hui la qualité de la fermeture, parce qu'une crevette demande de fermer tard et juste. Quand le jeu ira vers le freestyle, c'est le joueur qui la choisira.
+
+Source : critères de jugement de la [Døds Diving League](https://dodsdivingleague.com/pages/judging-criteria-and-scoring) et [Døds diving sur Wikipedia](https://en.wikipedia.org/wiki/D%C3%B8ds_diving).
 
 ## Ce qu'il faut savoir avant de toucher au code
 
@@ -45,6 +69,7 @@ Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la bran
 - **Three.js arrive par importmap depuis cdnjs**, version épinglée. Aucune dépendance npm, aucun build, aucun asset : tout est généré (falaise, eau, plongeur, son).
 - **L'ordre des rotations d'Euler compte pour le plongeur** : `rotation.y` est appliqué avant `rotation.x`, donc une fois le corps basculé à l'horizontale, `y` agit comme un roll autour de l'axe du corps. C'est ce qui rend la croix des bras lisible depuis une caméra latérale, sans quoi les bras pointent vers l'objectif et disparaissent.
 - **La lumière d'un spot doit éclairer la face visible.** La caméra est toujours en x négatif : un soleil placé derrière la falaise rendait toutes les faces avant grises et verdâtres, teintées par la lumière hémisphérique. Chaque `sunPos` de `src/spots.js` pointe donc vers la caméra, et une lumière de remplissage sans ombre complète.
+- **Le corps se cale sur son point de contact, pas l'inverse.** La physique suit un point, mais le corps n'est pas ce point : en croix il est à plat, en crevette il est plié en deux. `alignContact()` descend le rig de la hauteur de son point le plus bas, pour qu'une main, un pied ou un genou touche l'eau à l'instant où la physique dit `y = 0`. Toucher au timing pour corriger un décalage visuel casserait l'équilibrage ; c'est le corps qui se cale, jamais la fenêtre.
 - **Le plongeur est généré, pas chargé.** Son corps sort d'un champ de distance maillé par surface nets, avec skinning sur dix os. La géométrie coûte environ 165 ms une fois au chargement, puis elle est mise en cache et clonée par run : `disposeTree()` libère le clone sans vider le cache. Écarter les bras du buste dans la pose de repos n'est pas cosmétique, c'est ce qui empêche la peau de se souder et de tendre une palme quand la croix du døds s'ouvre.
 - **Three.js ne libère rien tout seul.** `buildWorld()` crée une scène complète à chaque run. Sans `world.dispose()`, les géométries, matériaux, textures et shadow maps restent sur le GPU : c'était 27 géométries de plus par run, jusqu'à la perte du contexte WebGL sur mobile. `disposeTree()` de `src/world.js` fait le ménage, et tout ce qui sort de la scène avant elle, comme le rig du plongeur, doit se libérer lui-même.
 - **Le niveau de l'eau est y = 0 pour la physique**, les vagues du shader et l'onde laissée par l'entrée du plongeur sont purement visuelles (±0,3 m) : les faire compter décalerait le timing parfait sans que le joueur puisse le prévoir.

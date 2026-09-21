@@ -54,7 +54,12 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    de distance, une fois, puis clone la geometrie du cache a chaque run. Les bras
    sont ecartes du buste au repos pour que la peau ne se soude pas : les
    rapprocher ramene la palme sombre sous l'aisselle des que la croix s'ouvre.
-9. **Une scene se libere.** `buildWorld()` alloue sur le GPU et Three.js ne rend
+9. **Les formes d'entree sont des donnees.** `LANDINGS` dans `src/diver.js` tient
+   les trois entrees valides du dodsing plus les deux ratees, avec leur pose et
+   leur inclinaison. Les figures a venir s'y branchent. Et `alignContact()` cale
+   le corps sur son point de contact : corriger un decalage visuel en touchant
+   aux fenetres de timing casserait l'equilibrage.
+10. **Une scene se libere.** `buildWorld()` alloue sur le GPU et Three.js ne rend
    rien tout seul : tout monde remplace passe par `world.dispose()`, et ce qui
    sort de la scene avant elle se libere lui-meme (`disposeTree`).
 

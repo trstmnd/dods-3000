@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.5';
+export const VERSION = 'v1.6';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
