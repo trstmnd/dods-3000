@@ -313,18 +313,20 @@ export function createDiver() {
 export const POSES = {
   stand: { shL: [0, 0, 0.12], shR: [0, 0, -0.12], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [0, 0, 0.04], hipR: [0, 0, -0.04], knL: [0.05, 0, 0], knR: [0.05, 0, 0], body: [0, 0, 0] },
   ready: { shL: [-0.5, 0, 0.35], shR: [-0.5, 0, -0.35], elL: [-0.7, 0, 0.1], elR: [-0.7, 0, -0.1], hipL: [0.35, 0, 0.06], hipR: [0.35, 0, -0.06], knL: [-0.6, 0, 0], knR: [-0.6, 0, 0], body: [0.22, 0, 0] },
-  // Le vol : bras en croix, corps etire et cambre, jambes serrees et tendues. Le jury
-  // demande un vol horizontal et un etirement net, pas un grand ecart.
-  dods: { shL: [0, 0, 1.66], shR: [0, 0, -1.66], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [-0.14, 0, 0.1], hipR: [-0.14, 0, -0.1], knL: [0.05, 0, 0], knR: [0.05, 0, 0], neck: [-0.25, 0, 0], body: [-0.3, 0, 0] },
-  // La crevette : la tete rentre dans les epaules, les bras poussent vers l'avant et les
-  // jambes montent chercher les mains. Mains et pieds touchent l'eau ensemble.
-  shrimp: { shL: [-2.05, 0, 0.2], shR: [-2.05, 0, -0.2], elL: [-0.25, 0, 0.05], elR: [-0.25, 0, -0.05], hipL: [-2.22, 0, 0.1], hipR: [-2.22, 0, -0.1], knL: [-0.2, 0, 0], knR: [-0.2, 0, 0], neck: [0.5, 0, 0], body: [0.35, 0, 0] },
-  // La balle : genoux et coudes ensemble, le corps enroule le plus serre possible.
-  bullet: { shL: [-2.0, 0, 0.5], shR: [-2.0, 0, -0.5], elL: [-2.2, 0, 0.2], elR: [-2.2, 0, -0.2], hipL: [-2.4, 0, 0.16], hipR: [-2.4, 0, -0.16], knL: [2.3, 0, 0], knR: [2.3, 0, 0], neck: [0.4, 0, 0], body: [0.5, 0, 0] },
-  // Sans les mains : genoux et tete ensemble, les bras restent ecartes sur les cotes.
-  nohands: { shL: [-0.4, 0, 1.25], shR: [-0.4, 0, -1.25], elL: [-0.4, 0, 0.3], elR: [-0.4, 0, -0.3], hipL: [-2.35, 0, 0.14], hipR: [-2.35, 0, -0.14], knL: [2.1, 0, 0], knR: [2.1, 0, 0], neck: [0.8, 0, 0], body: [0.45, 0, 0] },
-  // Ferme trop tot : le corps se met en boule et tombe sans forme, sans puissance.
-  ball: { shL: [-2.2, 0, 0.7], shR: [-2.2, 0, -0.7], elL: [-2.4, 0, 0.25], elR: [-2.4, 0, -0.25], hipL: [-2.6, 0, 0.22], hipR: [-2.6, 0, -0.22], knL: [2.6, 0, 0], knR: [2.6, 0, 0], neck: [0.5, 0, 0], body: [0.6, 0, 0] },
+  // Le vol : bras ET jambes tendus, corps etire et cambre. C'est l'etoile du dods,
+  // tenue le plus longtemps possible, pas une position de plongeon.
+  dods: { shL: [0, 0, 1.72], shR: [0, 0, -1.72], elL: [0, 0, 0.06], elR: [0, 0, -0.06], hipL: [-0.12, 0, 0.32], hipR: [-0.12, 0, -0.32], knL: [0.04, 0, 0], knR: [0.04, 0, 0], neck: [-0.28, 0, 0], body: [-0.3, 0, 0] },
+  // La crevette : le corps se recroqueville d'un coup, genoux dans la poitrine, talons
+  // aux fesses, bras qui viennent chercher les jambes, menton rentre. Mains et pieds
+  // touchent l'eau ensemble. C'est le nom qui le dit : la forme d'une crevette.
+  shrimp: { shL: [-1.55, 0, 0.35], shR: [-1.55, 0, -0.35], elL: [-1.95, 0, 0.15], elR: [-1.95, 0, -0.15], hipL: [-2.45, 0, 0.15], hipR: [-2.45, 0, -0.15], knL: [2.45, 0, 0], knR: [2.45, 0, 0], neck: [0.6, 0, 0], body: [0.45, 0, 0] },
+  // La balle : la meme chose en plus serre, coudes colles aux genoux.
+  bullet: { shL: [-2.0, 0, 0.45], shR: [-2.0, 0, -0.45], elL: [-2.5, 0, 0.2], elR: [-2.5, 0, -0.2], hipL: [-2.6, 0, 0.14], hipR: [-2.6, 0, -0.14], knL: [2.7, 0, 0], knR: [2.7, 0, 0], neck: [0.5, 0, 0], body: [0.6, 0, 0] },
+  // Sans les mains : recroqueville aussi, mais bras ouverts sur les cotes. Ce sont les
+  // genoux et la tete qui touchent.
+  nohands: { shL: [-0.3, 0, 1.2], shR: [-0.3, 0, -1.2], elL: [-0.35, 0, 0.25], elR: [-0.35, 0, -0.25], hipL: [-2.45, 0, 0.14], hipR: [-2.45, 0, -0.14], knL: [2.5, 0, 0], knR: [2.5, 0, 0], neck: [0.95, 0, 0], body: [0.55, 0, 0] },
+  // Ferme trop tot : la boule se fait mais sans tenue, bras qui trainent, corps mou.
+  ball: { shL: [-1.4, 0, 0.9], shR: [-1.4, 0, -0.9], elL: [-1.6, 0, 0.35], elR: [-1.6, 0, -0.35], hipL: [-2.3, 0, 0.24], hipR: [-2.3, 0, -0.24], knL: [2.2, 0, 0], knR: [2.2, 0, 0], neck: [0.4, 0, 0], body: [0.5, 0, 0] },
   pike: { shL: [-2.9, 0, 0.3], shR: [-2.9, 0, -0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], hipL: [1.9, 0, 0.12], hipR: [1.9, 0, -0.12], knL: [-0.15, 0, 0], knR: [-0.15, 0, 0], body: [0.3, 0, 0] },
   flail: { shL: [-1.2, 0, 2.1], shR: [-2.4, 0, -1.3], elL: [-1.6, 0, 0.4], elR: [-0.6, 0, -0.9], hipL: [-0.9, 0, 0.6], hipR: [0.7, 0, -0.35], knL: [-1.4, 0, 0], knR: [-0.4, 0, 0], body: [0.1, 0.4, 0.25] }
 };
@@ -333,10 +335,10 @@ export const POSES = {
 // du corps a l'entree : c'est elle qui decide de ce qui touche l'eau en premier.
 // Source : criteres de jugement de la Dods Diving League.
 export const LANDINGS = {
-  shrimp: { pose: 'shrimp', pitch: 2.05, label: 'CREVETTE', note: 'mains et pieds ensemble' },
-  bullet: { pose: 'bullet', pitch: 2.25, label: 'BALLE', note: 'genoux et coudes ensemble' },
-  nohands: { pose: 'nohands', pitch: 2.2, label: 'SANS LES MAINS', note: 'genoux et tête ensemble' },
-  ball: { pose: 'ball', pitch: 2.5, label: 'BOULE', note: 'refermé trop tôt, aucune forme' },
+  shrimp: { pose: 'shrimp', pitch: 1.95, label: 'CREVETTE', note: 'mains et pieds ensemble' },
+  bullet: { pose: 'bullet', pitch: 2.15, label: 'BALLE', note: 'genoux et coudes ensemble' },
+  nohands: { pose: 'nohands', pitch: 2.05, label: 'SANS LES MAINS', note: 'genoux et tête ensemble' },
+  ball: { pose: 'ball', pitch: 2.3, label: 'BOULE', note: 'refermé trop tôt, aucune forme' },
   flat: { pose: 'flail', pitch: 1.52, label: 'À PLAT', note: 'le ventre a tout pris' }
 };
 
