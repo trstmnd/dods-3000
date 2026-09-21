@@ -6,7 +6,8 @@ commencer : il evite d'ouvrir les 8 modules pour comprendre le projet.
 ## Ce que c'est
 
 Jeu de dodsing 3D, navigateur, zero build, zero dependance npm. Three.js arrive
-par importmap depuis cdnjs, version epinglee dans `index.html`. Tout est genere
+par importmap depuis jsDelivr, version epinglee et verifiee par `integrity` dans
+`index.html`. Tout est genere
 en code : falaise, eau, plongeur, son. Aucun asset binaire.
 
 Publie sur https://trstmnd.github.io/dods-3000/ par le workflow
