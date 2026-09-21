@@ -34,6 +34,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.4 | gerbe d'entrée refaite, mer vivante avec onde d'impact, ombre du plongeur sur l'eau, strates et ligne d'eau sur la falaise |
 | v1.5 | plongeur en 3D d'un seul tenant, peau lissée et squelette, multiplicateur de série sur le run |
 | v1.6 | entrée dans l'eau refaite sur la vraie mécanique : trois formes d'entrée, corps calé sur son point de contact, caméra et HUD qui laissent voir le geste |
+| v1.7 | le geste juste : vol bras et jambes tendus, entrée recroquevillée au dernier moment |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 
@@ -42,8 +43,8 @@ Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la bran
 Le jeu suit les critères de jugement de la discipline, pas une idée de plongeon.
 
 1. **L'anløp.** Sortir de la plateforme avec de la vitesse et de la puissance. C'est le multiplicateur de décollage.
-2. **Le vol.** Corps **horizontal et étiré**, bras en croix, jambes serrées. Plus c'est horizontal et tenu longtemps, mieux c'est. Chaque dixième de seconde ouvert rapporte du style.
-3. **La fermeture.** **Le plus tard possible**, et délibérée. C'est toute la tension du jeu.
+2. **Le vol.** Corps **horizontal, bras et jambes tendus**, l'étoile. Plus c'est étiré et tenu longtemps, mieux c'est. Chaque dixième de seconde ouvert rapporte du style.
+3. **La fermeture.** **Le plus tard possible**, et délibérée : le corps se **recroqueville d'un coup**, genoux dans la poitrine, talons aux fesses, menton rentré. C'est toute la tension du jeu, et c'est ce contraste entre l'étoile tenue et la boule soudaine qui fait le døds.
 4. **L'entrée.** Elle doit être contrôlée dans une des trois formes valides :
 
 | Forme | Ce qui touche l'eau en premier | Dans le jeu |

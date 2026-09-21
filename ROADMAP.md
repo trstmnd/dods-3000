@@ -64,7 +64,13 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
 - [x] **Camera et HUD qui laissent voir l'entree** : approche dans la derniere
   seconde, anneau de tuck efface une fois ferme.
 
-## v1.7, vers le freestyle
+## v1.7, le geste juste (livre)
+
+- [x] **Le vol se tend et l'entree se recroqueville.** Les poses d'entree etaient
+  des plis aux membres pendants, pas des boules : un dods part bras et jambes
+  tendus et se ferme recroqueville au dernier moment.
+
+## v1.8, vers le freestyle
 
 Le sujet du jeu est le geste, pas le catalogue de spots. La suite va donc vers
 les figures, toujours avec une entree propre a la fin.
