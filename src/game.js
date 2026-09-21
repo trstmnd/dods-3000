@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createDiver, applyPose, runPose, POSES } from './diver.js';
+import { createDiver, applyPose, runPose, POSES, LANDINGS } from './diver.js';
 import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
 
 export const TUNING = {
@@ -40,6 +40,13 @@ export function streakBonus(n) {
   return best;
 }
 
+const LANDING_BY_GRADE = {
+  perfect: 'shrimp', great: 'shrimp', good: 'bullet',
+  early: 'ball', chicken: 'ball', smack: 'flat'
+};
+
+const TMPV = new THREE.Vector3();
+
 function windows(height) {
   // plus le spot est haut, plus la fenetre est serree
   const k = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(height, 10, 34, 1.0, 0.72), 0.7, 1.05);
@@ -71,6 +78,8 @@ export class Jump {
     this.yaw = 0;
     this.styleTime = 0;
     this.tucked = false;
+    this.contact = this.contact || new THREE.Vector3(); // ou le corps touche l'eau
+    this.landing = LANDINGS.flat; // sans fermeture, c'est le ventre qui prend tout
     this.result = null;
     this.impactT = 0;
     this.takeoff = null;
@@ -134,6 +143,9 @@ export class Jump {
     else key = 'chicken';
     this.grade = TUNING.grades.find(g => g.key === key);
     if (this.flailing && key !== 'smack') this.grade = TUNING.grades.find(g => g.key === 'early');
+    // La forme d'entree suit la fermeture : la crevette demande de fermer tard et juste,
+    // une fermeture precipitee ne laisse qu'une boule sans forme.
+    this.landing = LANDINGS[LANDING_BY_GRADE[this.grade.key]];
     return true;
   }
 
@@ -157,8 +169,8 @@ export class Jump {
         this.bodyRot += ((this.flailing ? 0.9 : 1.48) - this.bodyRot) * Math.min(1, dt * 3.2);
         this.yaw += (-1.05 - this.yaw) * Math.min(1, dt * 3);
       } else {
-        applyPose(d.joints, this.grade.key === 'smack' ? POSES.flail : POSES.tuck, Math.min(1, dt * 15));
-        this.bodyRot += (2.55 - this.bodyRot) * Math.min(1, dt * 7);
+        applyPose(d.joints, POSES[this.landing.pose], Math.min(1, dt * 15));
+        this.bodyRot += (this.landing.pitch - this.bodyRot) * Math.min(1, dt * 7);
         this.yaw += (-0.45 - this.yaw) * Math.min(1, dt * 6);
       }
       d.root.rotation.x = this.bodyRot;
@@ -166,18 +178,46 @@ export class Jump {
       if (this.pos.y <= 0) this.land();
     } else if (this.state === 'impact') {
       this.impactT += dt;
-      this.pos.y = Math.max(-3.5, this.pos.y - 5 * dt * (1 - this.impactT));
-      if (this.impactT > 0.35) d.root.visible = false;
+      // L'eau freine, elle n'efface pas. Le corps s'enfonce d'environ deux metres, la
+      // surface se referme dessus et c'est elle qui le cache : le faire disparaitre en
+      // pleine entree coupait le geste juste au moment ou il devient lisible.
+      const brake = this.result && this.result.dead ? 9 : 14;
+      this.vel.multiplyScalar(Math.max(0, 1 - dt * brake));
+      this.pos.y = Math.max(-4.2, this.pos.y + this.vel.y * dt);
+      this.pos.z += this.vel.z * dt;
+      // sous l'eau le corps se relache et s'ouvre
+      applyPose(d.joints, POSES[this.impactT > 0.28 ? 'pike' : this.landing.pose], Math.min(1, dt * 3.5));
+      this.bodyRot += (this.landing.pitch + 0.3 - this.bodyRot) * Math.min(1, dt * 2);
+      d.root.rotation.x = this.bodyRot;
       if (this.impactT > 1.25 && this.onDone) { const cb = this.onDone; this.onDone = null; cb(this.result); }
     }
 
     d.root.position.copy(this.pos);
+    this.alignContact();
     this.placeBlob();
 
     this.shake = Math.max(0, this.shake - dt * 3.2);
     this.placeCamera(Math.min(1, dt * (this.state === 'impact' ? 3.4 : 6)));
     if (camShakeOut) camShakeOut(this.shake);
     return this.state;
+  }
+
+  // La physique suit un point, mais le corps n'est pas ce point : en croix il est a plat,
+  // en crevette il est plie en deux. On descend le rig de la hauteur de son point le plus
+  // bas, pour qu'une main, un pied ou un genou touche l'eau a l'instant ou la physique dit
+  // y = 0. Le timing ne bouge pas, c'est le corps qui se cale dessus.
+  alignContact() {
+    if (this.state === 'walk') return;
+    const d = this.diver;
+    d.root.updateMatrixWorld(true);
+    let low = Infinity;
+    for (const t of d.tips) {
+      t.getWorldPosition(TMPV);
+      if (TMPV.y < low) { low = TMPV.y; this.contact.copy(TMPV); }
+    }
+    const drop = low - this.pos.y;
+    d.root.position.y -= drop;
+    this.contact.y -= drop;
   }
 
   // L'ombre grandit et palit avec l'altitude, puis se resserre et se fonce a l'approche :
@@ -211,7 +251,9 @@ export class Jump {
     const dead = this.grade.key === 'smack';
     const speed = Math.abs(this.vel.y);
     const power = THREE.MathUtils.clamp(speed / 26, 0.35, 1.25) * (dead ? 1.25 : (this.grade.mult >= 2 ? 1.15 : 0.8));
-    this.splash.burst(this.pos.x, this.pos.z, power);
+    // La gerbe part de la main ou du pied qui entre, pas de l'origine du rig : decalee,
+    // elle jaillissait a cote du corps.
+    this.splash.burst(this.contact.x, this.contact.z, power);
     this.shake = dead ? 1.25 : 0.55 + this.grade.mult * 0.12;
     this.audio?.splash(dead);
 
@@ -223,7 +265,7 @@ export class Jump {
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
       height: this.spot.height,
       // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
-      win: this.win, tucked: this.tucked
+      win: this.win, tucked: this.tucked, landing: this.landing
     };
   }
 
@@ -236,13 +278,21 @@ export class Jump {
       fov = 60;
     } else if (this.state === 'fly') {
       const v = Math.min(1, Math.abs(this.vel.y) / 24);
-      tx = -6.4 - v * 1.8; ty = p.y + 1.35 - v * 0.9; tz = p.z + 2.5 + v * 1.3;
-      lx = 0; ly = p.y - 0.75 - v * 1.5; lz = p.z + 0.3;
-      fov = 54 + v * 24;
+      // La derniere seconde est le sujet du jeu : la camera se rapproche et resserre le
+      // champ pour qu'on voie la fermeture et la forme d'entree. Au grand angle de la
+      // chute, le plongeur n'est qu'un point et la crevette ne se lit pas.
+      const close = 1 - THREE.MathUtils.clamp(this.ttc / 0.9, 0, 1);
+      tx = -6.4 - v * 1.8 + close * 3.6;
+      ty = p.y + 1.35 - v * 0.9 + close * 0.35;
+      tz = p.z + 2.5 + v * 1.3 - close * 1.1;
+      lx = 0; ly = p.y - 0.75 - v * 1.5 + close * 0.95; lz = p.z + 0.3;
+      fov = 54 + v * 24 - close * 26;
     } else {
-      tx = -13; ty = 4.6; tz = p.z + 12.5;
-      lx = 0; ly = 2.6; lz = p.z;
-      fov = 60;
+      // A l'entree, la camera descend au ras de l'eau et regarde le point d'impact :
+      // de loin et de haut, la moitie basse du cadre etait vide et le geste illisible.
+      tx = -9.5; ty = 1.9; tz = p.z + 8.5;
+      lx = 0; ly = 0.35; lz = p.z + 0.5;
+      fov = 52;
     }
     // En portrait, un champ vertical constant retrecit le champ horizontal et le plongeur, qui vole
     // a plat, deborde du cadre. On elargit donc le fov quand l'ecran est plus haut que large.

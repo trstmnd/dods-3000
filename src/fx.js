@@ -16,7 +16,7 @@ function dropTexture() {
 
 // Deux nuages de tailles differentes valent mieux qu'un seul : les grosses gouttes donnent
 // la silhouette, la bruine donne le volume. Un seul nuage uniforme ressemble a du popcorn.
-const DROPS = 420, MIST = 300;
+const DROPS = 420, MIST = 300, FOAM = 220;
 
 function cloud(scene, count, size, map, blending, opacity) {
   const geo = new THREE.BufferGeometry();
@@ -30,13 +30,16 @@ function cloud(scene, count, size, map, blending, opacity) {
   points.frustumCulled = false;
   points.visible = false;
   scene.add(points);
-  return { points, mat, pos, geo, vel: new Float32Array(count * 3), life: new Float32Array(count), max: count, active: 0, base: opacity };
+  return { points, mat, pos, geo, vel: new Float32Array(count * 3), life: new Float32Array(count), max: count, active: 0, base: opacity, fade: 1.05 };
 }
 
 export function createSplash(scene, waterMat = null) {
   const map = dropTexture();
   const drops = cloud(scene, DROPS, 0.38, map, THREE.NormalBlending, 0.95);
   const mist = cloud(scene, MIST, 0.2, map, THREE.AdditiveBlending, 0.45);
+  // L'ecume qui reste a la surface apres l'entree. Ce qu'on voit d'en haut d'un dods, ce
+  // n'est pas la gerbe une seconde plus tard, c'est cette tache blanche qui tourne encore.
+  const foam = cloud(scene, FOAM, 0.34, map, THREE.NormalBlending, 0.8);
 
   // L'eau projetee est blanche quelle que soit la lumiere du spot. Un materiau eclaire
   // la rendait grise dans un fjord a l'ombre, ou elle ressemblait a un poteau de beton.
@@ -96,24 +99,24 @@ export function createSplash(scene, waterMat = null) {
     c.t = 0;
   }
 
-  function step(c, dt, drag) {
+  function step(c, dt, drag, grav = 20) {
     if (!c.points.visible) return;
     c.t += dt;
     let alive = 0;
     for (let i = 0; i < c.active; i++) {
       if (c.life[i] <= 0) continue;
       c.life[i] -= dt;
-      c.vel[i * 3 + 1] -= 20 * dt;
+      c.vel[i * 3 + 1] -= grav * dt;
       c.vel[i * 3] *= 1 - drag * dt;
       c.vel[i * 3 + 2] *= 1 - drag * dt;
       c.pos[i * 3] += c.vel[i * 3] * dt;
       c.pos[i * 3 + 1] += c.vel[i * 3 + 1] * dt;
       c.pos[i * 3 + 2] += c.vel[i * 3 + 2] * dt;
-      if (c.pos[i * 3 + 1] < 0 || c.life[i] <= 0) { c.life[i] = 0; c.pos[i * 3 + 1] = -99; }
+      if ((grav > 0 && c.pos[i * 3 + 1] < 0) || c.life[i] <= 0) { c.life[i] = 0; c.pos[i * 3 + 1] = -99; }
       else alive++;
     }
     c.geo.attributes.position.needsUpdate = true;
-    c.mat.opacity = c.base * Math.max(0, 1 - c.t * 1.05);
+    c.mat.opacity = c.base * Math.max(0, 1 - c.t * c.fade);
     if (!alive || c.mat.opacity <= 0.01) c.points.visible = false;
   }
 
@@ -122,6 +125,9 @@ export function createSplash(scene, waterMat = null) {
       power = pow;
       fill(drops, x, z, pow, { count: DROPS, bias: 0.6, up: [0.55, 0.95], out: [0.4, 1.5], flat: 0.55, life: [0.45, 0.5] });
       fill(mist, x, z, pow, { count: MIST, bias: 0.35, up: [0.3, 0.7], out: [0.5, 1.9], flat: 0.75, life: [0.6, 0.6] });
+      fill(foam, x, z, pow, { count: FOAM, bias: 0.45, up: [0, 0], out: [0.25, 1.1], flat: 0, life: [1.6, 0.8] });
+      foam.fade = 0.5;
+      for (let i = 0; i < foam.active; i++) foam.pos[i * 3 + 1] = 0.05 + Math.random() * 0.06;
       plumeT = 0; plumeOn = true;
       column.position.set(x, 0, z); crown.position.set(x, 0, z);
       column.visible = crown.visible = true;
@@ -149,11 +155,12 @@ export function createSplash(scene, waterMat = null) {
         const w = (1.6 - k * 0.5) * (0.7 + power * 0.35);
         column.scale.set(w, h, w);
         // la colonne ne doit se voir que le temps que la bruine la recouvre
-        colMat.opacity = 0.45 * Math.pow(Math.max(0, 1 - plumeT / 0.34), 1.4);
+        colMat.opacity = 0.26 * Math.pow(Math.max(0, 1 - plumeT / 0.3), 1.4);
         const ck = Math.min(1, plumeT / 0.36);
-        const spread = 0.5 + ck * 2.3 * (0.6 + power * 0.6);
-        crown.scale.set(spread, 0.5 + ck * 1.1, spread);
-        crownMat.opacity = 0.75 * (1 - ck) * (1 - ck);
+        const spread = 0.4 + ck * 1.25 * (0.6 + power * 0.6);
+        crown.scale.set(spread, 0.4 + ck * 0.85, spread);
+        // vue de pres, une couronne trop opaque devient un abat-jour gris pose sur la mer
+        crownMat.opacity = 0.3 * (1 - ck) * (1 - ck);
         if (k >= 1) { plumeOn = false; column.visible = crown.visible = false; }
       }
       for (const r of rings) {
@@ -166,11 +173,12 @@ export function createSplash(scene, waterMat = null) {
       }
       step(drops, dt, 1.1);
       step(mist, dt, 2.2);
+      step(foam, dt, 1.6, 0); // l'ecume ne retombe pas, elle s'etale et se dilue
     },
 
     reset() {
-      drops.points.visible = false; mist.points.visible = false;
-      drops.active = 0; mist.active = 0;
+      drops.points.visible = false; mist.points.visible = false; foam.points.visible = false;
+      drops.active = 0; mist.active = 0; foam.active = 0;
       column.visible = false; crown.visible = false; plumeOn = false;
       for (const r of rings) r.mesh.visible = false;
     }

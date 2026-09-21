@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.5';
+export const VERSION = 'v1.6';
 const JUMPS_PER_RUN = 3;
 const STORE = 'dods3000.v1';
 
@@ -202,6 +202,8 @@ function onJumpDone(res) {
     : `${res.takeoff.label} · ${res.air.toFixed(2)} s en l\'air`;
   $('#jr-timing').textContent = timingText(res);
   $('#jr-timing').style.color = res.grade.color;
+  // nommer la forme d'entree : c'est le vocabulaire du dodsing, et ca s'apprend en jouant
+  $('#jr-landing').innerHTML = `<b>${res.landing.label}</b> · ${res.landing.note}`;
   drawGauge(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
     <li><span>Base ${res.height} m</span><b>${res.base}</b></li>
@@ -262,6 +264,8 @@ function updateHud() {
     const ring = $('#tuckring');
     ring.classList.add('on');
     ring.classList.toggle('hot', h.hot && !h.tucked);
+    // Une fois ferme, l'anneau a fait son travail : il s'efface pour laisser voir l'entree.
+    ring.classList.toggle('done', h.tucked);
     ring.querySelector('.tr-arc').style.strokeDasharray = `${(h.ratio * RING_C).toFixed(1)} ${RING_C}`;
     ring.querySelector('.tr-zone').style.strokeDasharray =
       `0 ${(h.zoneLo * RING_C).toFixed(1)} ${((h.zoneHi - h.zoneLo) * RING_C).toFixed(1)} ${RING_C}`;

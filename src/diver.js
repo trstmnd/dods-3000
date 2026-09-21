@@ -269,6 +269,20 @@ export function createDiver() {
     joints.neck.add(eye);
   }
 
+  // Marqueurs de contact. La physique suit un point, mais c'est une main, un pied ou un
+  // genou qui touche l'eau : ces reperes disent ou est le bas du corps dans chaque pose.
+  const tips = [];
+  const tip = (bone, x, y, z) => {
+    const o = new THREE.Object3D();
+    o.position.set(x, y, z);
+    joints[bone].add(o);
+    tips.push(o);
+    return o;
+  };
+  tip('elL', 0, -0.54, 0); tip('elR', 0, -0.54, 0);
+  tip('knL', 0, -0.70, 0.06); tip('knR', 0, -0.70, 0.06);
+  tip('body', 0, 0.50, 0.20); tip('neck', 0, 0.30, 0);
+
   root.updateMatrixWorld(true); // pose de repos : c'est elle qui sert de reference au skinning
   const skeleton = new THREE.Skeleton(bones);
   const mesh = new THREE.SkinnedMesh(bodyGeometry(order), new THREE.MeshStandardMaterial({
@@ -292,18 +306,38 @@ export function createDiver() {
   blob.add(disc, halo);
   blob.userData = { disc: disc.material, halo: halo.material };
 
-  return { root, joints, blob, skeleton };
+  return { root, joints, blob, skeleton, tips };
 }
 
 // Une pose = rotations en radians. Les cles absentes retournent a zero.
 export const POSES = {
   stand: { shL: [0, 0, 0.12], shR: [0, 0, -0.12], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [0, 0, 0.04], hipR: [0, 0, -0.04], knL: [0.05, 0, 0], knR: [0.05, 0, 0], body: [0, 0, 0] },
   ready: { shL: [-0.5, 0, 0.35], shR: [-0.5, 0, -0.35], elL: [-0.7, 0, 0.1], elR: [-0.7, 0, -0.1], hipL: [0.35, 0, 0.06], hipR: [0.35, 0, -0.06], knL: [-0.6, 0, 0], knR: [-0.6, 0, 0], body: [0.22, 0, 0] },
-  // le dods : bras en croix, corps cambre, jambes ecartees
-  dods: { shL: [0, 0, 1.62], shR: [0, 0, -1.62], elL: [0, 0, 0.12], elR: [0, 0, -0.12], hipL: [-0.12, 0, 0.3], hipR: [-0.12, 0, -0.3], knL: [0.08, 0, 0], knR: [0.08, 0, 0], body: [-0.28, 0, 0] },
-  tuck: { shL: [-2.3, 0, 0.55], shR: [-2.3, 0, -0.55], elL: [-2.1, 0, 0.2], elR: [-2.1, 0, -0.2], hipL: [2.35, 0, 0.18], hipR: [2.35, 0, -0.18], knL: [-2.5, 0, 0], knR: [-2.5, 0, 0], body: [0.55, 0, 0] },
+  // Le vol : bras en croix, corps etire et cambre, jambes serrees et tendues. Le jury
+  // demande un vol horizontal et un etirement net, pas un grand ecart.
+  dods: { shL: [0, 0, 1.66], shR: [0, 0, -1.66], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [-0.14, 0, 0.1], hipR: [-0.14, 0, -0.1], knL: [0.05, 0, 0], knR: [0.05, 0, 0], neck: [-0.25, 0, 0], body: [-0.3, 0, 0] },
+  // La crevette : la tete rentre dans les epaules, les bras poussent vers l'avant et les
+  // jambes montent chercher les mains. Mains et pieds touchent l'eau ensemble.
+  shrimp: { shL: [-2.05, 0, 0.2], shR: [-2.05, 0, -0.2], elL: [-0.25, 0, 0.05], elR: [-0.25, 0, -0.05], hipL: [-2.22, 0, 0.1], hipR: [-2.22, 0, -0.1], knL: [-0.2, 0, 0], knR: [-0.2, 0, 0], neck: [0.5, 0, 0], body: [0.35, 0, 0] },
+  // La balle : genoux et coudes ensemble, le corps enroule le plus serre possible.
+  bullet: { shL: [-2.0, 0, 0.5], shR: [-2.0, 0, -0.5], elL: [-2.2, 0, 0.2], elR: [-2.2, 0, -0.2], hipL: [-2.4, 0, 0.16], hipR: [-2.4, 0, -0.16], knL: [2.3, 0, 0], knR: [2.3, 0, 0], neck: [0.4, 0, 0], body: [0.5, 0, 0] },
+  // Sans les mains : genoux et tete ensemble, les bras restent ecartes sur les cotes.
+  nohands: { shL: [-0.4, 0, 1.25], shR: [-0.4, 0, -1.25], elL: [-0.4, 0, 0.3], elR: [-0.4, 0, -0.3], hipL: [-2.35, 0, 0.14], hipR: [-2.35, 0, -0.14], knL: [2.1, 0, 0], knR: [2.1, 0, 0], neck: [0.8, 0, 0], body: [0.45, 0, 0] },
+  // Ferme trop tot : le corps se met en boule et tombe sans forme, sans puissance.
+  ball: { shL: [-2.2, 0, 0.7], shR: [-2.2, 0, -0.7], elL: [-2.4, 0, 0.25], elR: [-2.4, 0, -0.25], hipL: [-2.6, 0, 0.22], hipR: [-2.6, 0, -0.22], knL: [2.6, 0, 0], knR: [2.6, 0, 0], neck: [0.5, 0, 0], body: [0.6, 0, 0] },
   pike: { shL: [-2.9, 0, 0.3], shR: [-2.9, 0, -0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], hipL: [1.9, 0, 0.12], hipR: [1.9, 0, -0.12], knL: [-0.15, 0, 0], knR: [-0.15, 0, 0], body: [0.3, 0, 0] },
   flail: { shL: [-1.2, 0, 2.1], shR: [-2.4, 0, -1.3], elL: [-1.6, 0, 0.4], elR: [-0.6, 0, -0.9], hipL: [-0.9, 0, 0.6], hipR: [0.7, 0, -0.35], knL: [-1.4, 0, 0], knR: [-0.4, 0, 0], body: [0.1, 0.4, 0.25] }
+};
+
+// Les trois entrees valides du dodsing, plus les deux ratees. `pitch` est l'inclinaison
+// du corps a l'entree : c'est elle qui decide de ce qui touche l'eau en premier.
+// Source : criteres de jugement de la Dods Diving League.
+export const LANDINGS = {
+  shrimp: { pose: 'shrimp', pitch: 2.05, label: 'CREVETTE', note: 'mains et pieds ensemble' },
+  bullet: { pose: 'bullet', pitch: 2.25, label: 'BALLE', note: 'genoux et coudes ensemble' },
+  nohands: { pose: 'nohands', pitch: 2.2, label: 'SANS LES MAINS', note: 'genoux et tête ensemble' },
+  ball: { pose: 'ball', pitch: 2.5, label: 'BOULE', note: 'refermé trop tôt, aucune forme' },
+  flat: { pose: 'flail', pitch: 1.52, label: 'À PLAT', note: 'le ventre a tout pris' }
 };
 
 const TMP = new THREE.Euler();
