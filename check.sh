@@ -51,7 +51,8 @@ t "fenetres de tuck jouables" "node --input-type=module -e \"
 \""
 
 # 5. le point d entree est bien cable
-t "importmap three" "grep -q 'cdnjs.cloudflare.com/ajax/libs/three.js/' index.html"
+t "importmap three" "grep -q 'cdn.jsdelivr.net/npm/three@' index.html"
+t "integrity sur three" "grep -q 'sha384-' index.html"
 t "module main.js charge" "grep -q 'src/main.js' index.html"
 t "un seul canvas" "[ \$(grep -c '<canvas' index.html) -eq 1 ]"
 

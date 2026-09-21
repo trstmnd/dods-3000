@@ -136,8 +136,17 @@
 
 <div id="loading">chargement…</div>
 
+<!-- integrity : le navigateur refuse three si le CDN sert autre chose que ces octets exacts.
+     Hash calcule sur le tarball npm officiel de three 0.170.0. jsdelivr sert le fichier npm tel
+     quel, ce qui rend le hash verifiable ; cdnjs sert son propre build minifie, qui ne l'est pas.
+     Chrome 127, Firefox 138 et Safari 18.4 appliquent la cle, les versions d'avant l'ignorent. -->
 <script type="importmap">
-{ "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.170.0/three.module.min.js" } }
+{
+  "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" },
+  "integrity": {
+    "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js": "sha384-GY5FqjttLCFRt/McQbyaVdCk2O1IQtOeX8Py6NfD89BIAsIyJFRl4UgSXrk2vXAk"
+  }
+}
 </script>
 <script type="module" src="src/main.js"></script>
 </body>
