@@ -169,9 +169,12 @@ export class Jump {
         this.bodyRot += ((this.flailing ? 0.9 : 1.48) - this.bodyRot) * Math.min(1, dt * 3.2);
         this.yaw += (-1.05 - this.yaw) * Math.min(1, dt * 3);
       } else {
-        applyPose(d.joints, POSES[this.landing.pose], Math.min(1, dt * 15));
-        this.bodyRot += (this.landing.pitch - this.bodyRot) * Math.min(1, dt * 7);
-        this.yaw += (-0.45 - this.yaw) * Math.min(1, dt * 6);
+        // La fermeture est un coup sec, pas une transition. A 15 par seconde elle durait
+        // 0,15 s, et le ralenti d'un perfect l'etirait encore : sur une fermeture tardive
+        // le corps entrait dans l'eau a moitie ouvert. A 34 elle est bouclee en 0,05 s.
+        applyPose(d.joints, POSES[this.landing.pose], Math.min(1, dt * 34));
+        this.bodyRot += (this.landing.pitch - this.bodyRot) * Math.min(1, dt * 17);
+        this.yaw += (-0.45 - this.yaw) * Math.min(1, dt * 13);
       }
       d.root.rotation.x = this.bodyRot;
       d.root.rotation.y = this.yaw;
