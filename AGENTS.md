@@ -7,7 +7,9 @@ commencer : il evite d'ouvrir les 8 modules pour comprendre le projet.
 
 Jeu de dodsing 3D, navigateur, zero build, zero dependance npm. Three.js arrive
 par importmap depuis jsDelivr, version epinglee et verifiee par `integrity` dans
-`index.html`. Tout est genere
+`index.html`. L'etape `Integrity de three` du workflow telecharge le fichier et
+compare son sha384 a celui de l'importmap : le CDN n'est pas joignable depuis une
+machine d'agent, un runner si, et un hash faux laisse une page blanche. Tout est genere
 en code : falaise, eau, plongeur, son. Aucun asset binaire.
 
 Publie sur https://trstmnd.github.io/dods-3000/ par le workflow
@@ -67,7 +69,7 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
 ## Boucle de travail
 
 ```bash
-./check.sh                  # 28 controles deterministes, ni reseau ni navigateur
+./check.sh                  # 29 controles deterministes, ni reseau ni navigateur
 python3 -m http.server 8012 # puis http://localhost:8012/?cb=<n>
 ```
 

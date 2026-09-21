@@ -22,6 +22,19 @@ jobs:
       - name: Controles
         run: sh check.sh
 
+      # Le seul endroit d'ou le CDN est joignable : on confronte ici le hash de
+      # l'importmap aux octets reellement servis. S'ils divergent, rien ne se deploie.
+      - name: Integrity de three
+        run: |
+          url=$(grep -oE 'https://cdn\.jsdelivr\.net/npm/three@[^"]+' index.html | head -1)
+          attendu=$(grep -oE 'sha384-[A-Za-z0-9+/=]+' index.html | head -1)
+          curl -fsSL "$url" -o /tmp/three.module.js
+          obtenu="sha384-$(openssl dgst -sha384 -binary /tmp/three.module.js | openssl base64 -A)"
+          echo "url     : $url"
+          echo "attendu : $attendu"
+          echo "obtenu  : $obtenu"
+          [ "$obtenu" = "$attendu" ] || { echo "::error::le CDN ne sert pas les octets attendus"; exit 1; }
+
       - name: Construire _site
         run: |
           rm -rf _site
