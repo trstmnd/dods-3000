@@ -403,7 +403,9 @@ function updateHud(dt) {
       // montre en l'air est celui qu'on retrouve sur la carte.
       const bonus = keepsStreak(g) ? streakBonus(state.streak + 1) : null;
       setText(E.pot, g.key === 'smack' ? '0' : '+' + (bonus ? Math.round(h.pot.score * bonus.mult) : h.pot.score));
-      setText(E['tr-streak'], bonus ? bonus.label : '');
+      // meme regle que le HUD apres coup : SERIE x1 des le premier saut qui la lance
+      const next = keepsStreak(g) ? state.streak + 1 : 0;
+      setText(E['tr-streak'], bonus ? bonus.label : (next === 1 ? 'SÉRIE x1' : ''));
       const level = GRADE_LEVEL[g.key];
       if (level !== lastLevel) { if (lastLevel >= 0 && level < 5) audio.tick(level); lastLevel = level; }
       // Le texte ne donne jamais le top : l'oeil reagit trop tard, c'est l'eau qui monte,
@@ -509,9 +511,9 @@ window.addEventListener('blur', autoPause);
 
 /* ---------- entrees ---------- */
 // Un seul geste pour tout le saut : appuyer, tenir, lacher. Le clavier et les doigts
-// alimentent le meme ensemble de « maintiens » ; le geste commence au premier et se
-// termine quand le dernier se leve. Un deuxieme doigt ne fait donc rien, et la
-// repetition automatique du clavier est ignoree.
+// alimentent le meme ensemble de « maintiens » ; le maintien qui lance le geste (owner)
+// est le seul qui le termine. Un deuxieme doigt ne fait donc rien, et la repetition
+// automatique du clavier est ignoree.
 const held = new Set();
 // Le maintien qui a lance le geste est le seul qui le termine. Un doigt fantome (un
 // pointerup perdu, un doigt pose au bord de l'ecran) ne bloque donc plus rien : il ne
