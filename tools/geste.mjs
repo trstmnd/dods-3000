@@ -31,15 +31,34 @@ await page.mouse.up();
 const b2 = await S();
 out.souris = { ok: b1.state === 'fly' && b1.held && b2.tucked };
 
-// 3. Deux doigts : le second ne fait rien, le geste finit quand le dernier se leve
+// 3. Deux doigts : le second ne fait rien, le doigt qui a lance le geste le termine
 await fresh();
 await ptr('pointerdown', 1); await ptr('pointerdown', 2);
 await tick(10);
-await ptr('pointerup', 1);
-const c1 = await S();
 await ptr('pointerup', 2);
+const c1 = await S();
+await ptr('pointerup', 1);
 const c2 = await S();
-out.deuxDoigts = { apresPremierLeve: c1, apresSecond: c2, ok: c1.held && !c1.tucked && c2.tucked };
+out.deuxDoigts = { apresSecondLeve: c1, apresPremierLeve: c2, ok: c1.held && !c1.tucked && c2.tucked };
+
+// 3 bis. Doigt fantome : un doigt pose qui ne se leve jamais (pointerup perdu) ne bloque
+// pas les sauts suivants (defaut D1 du gauntlet round 1)
+await fresh();
+await ptr('pointerdown', 1);             // le vrai geste
+await ptr('pointerdown', 20);            // fantome : pose et ne se leve jamais
+await tick(20);
+await ptr('pointerup', 1);               // lacher : doit fermer malgre le fantome
+const f0 = await S();
+await page.evaluate(() => { let f = 0; while (f++ < 3000 && !document.querySelector('#s-jump').classList.contains('on')) window.__dods.tick(1); });
+await page.waitForTimeout(500);
+await ptr('pointerdown', 21, '#s-jump'); await ptr('pointerup', 21, '#s-jump');
+await page.evaluate(() => window.__dods.tick(90));
+await ptr('pointerdown', 22);             // saut suivant, le fantome est toujours pose
+const f1 = await S();
+await tick(10);
+await ptr('pointerup', 22);
+const f2 = await S();
+out.doigtFantome = { fermeMalgreFantome: f0.tucked, decolleEnsuite: f1.state, fermeEnsuite: f2.tucked, ok: f0.tucked && f1.state === 'fly' && f2.tucked };
 
 // 4. pointercancel vaut un lacher
 await fresh();

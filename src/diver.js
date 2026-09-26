@@ -351,7 +351,9 @@ export const LANDINGS = {
 
 const TMP = new THREE.Euler();
 export function applyPose(joints, pose, blend = 1, extra = null) {
-  for (const key of Object.keys(joints)) {
+  // la liste des articulations est figee : calculee une fois, pas a chaque image
+  const keys = joints.__keys || Object.defineProperty(joints, '__keys', { value: Object.keys(joints) }).__keys;
+  for (const key of keys) {
     const target = (extra && extra[key]) || pose[key] || [0, 0, 0];
     const j = joints[key];
     TMP.set(target[0], target[1], target[2]);

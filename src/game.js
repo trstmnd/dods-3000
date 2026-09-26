@@ -333,8 +333,13 @@ export class Jump {
     const dead = this.grade.key === 'smack';
     const speed = Math.abs(this.vel.y);
     const power = THREE.MathUtils.clamp(speed / 26, 0.35, 1.25) * (dead ? 1.25 : (this.grade.mult >= 2 ? 1.15 : 0.8));
-    // La gerbe part de la main ou du pied qui entre, pas de l'origine du rig.
-    this.splash.burst(this.contact.x, this.contact.z, power, dead);
+    // La gerbe part de la main ou du pied qui entre, pas de l'origine du rig. A plat c'est
+    // le ventre qui frappe : la pose desordonnee met un coude en point bas, loin du buste,
+    // et la gerbe partait a cote du corps.
+    if (dead) {
+      this.diver.joints.body.getWorldPosition(TMPV);
+      this.splash.burst(TMPV.x, TMPV.z, power, dead);
+    } else this.splash.burst(this.contact.x, this.contact.z, power, dead);
     this.shake = dead ? 1.25 : 0.55 + this.grade.mult * 0.12;
     this.audio?.splash(dead);
 

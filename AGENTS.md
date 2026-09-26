@@ -65,9 +65,11 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    v2.0 un monde est garde tant qu'on reste sur son spot (`useWorld()`).
 11. **Un seul geste par saut : appuyer, tenir, lacher.** `Jump.down()` decolle
    (ou reprend la main en vol), `Jump.up()` referme. Tout ce qui tient un appui
-   (clavier, doigts, souris) alimente le meme ensemble `held` de `src/main.js` :
-   le geste finit quand le dernier maintien se leve. Ajouter une entree veut dire
-   l'y brancher, jamais appeler `tuck()` a cote.
+   (clavier, doigts, souris) alimente le meme ensemble `held` de `src/main.js`, et
+   **le maintien qui a lance le geste (`owner`) est le seul qui le termine** : un
+   second doigt ne fait rien, un doigt fantome (pointerup perdu) ne bloque ni le
+   lacher ni les sauts suivants. `nextJump()` et `startRun()` repartent sans geste
+   en cours. Ajouter une entree veut dire l'y brancher, jamais appeler `tuck()` a cote.
 12. **La note se calcule a l'instant du doigt.** `lateOf(e)` mesure le temps entre
    la derniere image simulee et l'evenement, et `jump()`/`tuck()` prolongent la
    parabole d'autant. Ne jamais repasser a une note lue a l'image suivante.
@@ -75,7 +77,7 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    est le meme a toutes les frequences d'ecran, et le `ttc` affiche est vrai.
 14. **Une seule fonction de note**, `gradeAt()`, sert au verdict et a la mise
    affichee en direct : le chiffre montre pendant la chute vaut exactement ce que
-   le lacher encaisse (`tools/timing.mjs` le verifie).
+   le saut ajoute au run, bonus de serie compris (`tools/timing.mjs` le verifie).
 15. **La boucle chaude n'alloue rien et n'ecrit dans le DOM que ce qui change**
    (`setText`, `setStyle`, `setClass`, `setAttr`). Pas de `backdrop-filter`, pas
    de bruit calcule par pixel dans un shader : la texture `noiseData()` sert le

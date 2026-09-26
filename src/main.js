@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v2.0';
+export const VERSION = 'v2.1';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
@@ -17,7 +17,7 @@ const STORE = 'dods3000.v1';
 // chaque frame sur mobile.
 const E = {};
 for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
-  'tuckring', 'tr-grade', 'pot', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
+  'tuckring', 'tr-grade', 'tr-streak', 'pot', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
   'pause-resume', 'loading', 'sound', 'version'])
   E[id] = document.getElementById(id);
 const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
@@ -110,7 +110,7 @@ function show(...names) {
   // Hors du jeu : plus de tension ni de vent, et le plongeur retourne en haut de la falaise.
   if (!names.includes('run')) {
     audio.setTension(0); audio.setWind(0);
-    held.clear();
+    clearHeld();
     if (jump && jump.state !== 'walk') jump.reset();
     setStyle(E.speed, 'opacity', '0');
   }
@@ -167,7 +167,10 @@ function openBrief(spot) {
   show('brief');
   // Le decor du spot choisi s'installe derriere la fiche, pendant qu'on la lit : la
   // construction et la compilation des shaders sont payees ici, pas au moment de sauter.
-  if (!world || world.spot.id !== spot.id) swapWorld(spot);
+  // Compare a la cible du fondu en cours, pas au monde encore affiche : trois choix
+  // rapides laissaient sinon le decor du deuxieme derriere la fiche du troisieme.
+  const target = pendingSpot || (world && world.spot);
+  if (!target || target.id !== spot.id) swapWorld(spot);
 }
 
 /* ---------- monde ---------- */
@@ -184,18 +187,24 @@ function useWorld(spot) {
   menuCam.snap = true;
   // compile() ne voit que ce qui est visible : la gerbe, cachee jusqu'a l'impact,
   // aurait compile ses shaders au pire moment, pendant l'entree dans l'eau.
+  // compile() ne prechauffe pas la passe d'ombre : une vraie image, rendue sous le fondu,
+  // compile tout, ombres comprises.
   const hidden = [];
   world.scene.traverse(o => { if (!o.visible) { hidden.push(o); o.visible = true; } });
-  try { renderer.compile(world.scene, camera); } catch { }
+  try { renderer.compile(world.scene, camera); renderer.render(world.scene, camera); } catch { }
   for (const o of hidden) o.visible = false;
+  // Un nouveau decor n'a pas le meme cout : la resolution adaptative reprend sa veille.
+  if (quality.mode === 'off') { quality.mode = 'watch'; quality.bad = 0; }
 }
 
 // Un fondu court masque le changement de decor et la construction qui l'accompagne.
-let swapTimer = 0;
+let swapTimer = 0, pendingSpot = null;
 function swapWorld(spot) {
   setClass(E.fade, 'on', true);
   clearTimeout(swapTimer);
+  pendingSpot = spot;
   swapTimer = setTimeout(() => {
+    pendingSpot = null;
     useWorld(spot);
     requestAnimationFrame(() => setClass(E.fade, 'on', false));
   }, 140);
@@ -204,6 +213,8 @@ function swapWorld(spot) {
 /* ---------- run ---------- */
 function startRun() {
   clearTimeout(swapTimer);
+  pendingSpot = null;
+  clearHeld();
   setClass(E.fade, 'on', false);
   useWorld(state.spot);
   state.jumpIndex = 0;
@@ -216,6 +227,9 @@ function startRun() {
 
 function nextJump() {
   setPause(false);
+  // Le doigt qui vient de taper la carte est peut-etre encore pose : le saut suivant
+  // commence sans geste en cours, et ce doigt-la ne compte plus.
+  owner = null;
   state.jumpIndex++;
   jump.reset();
   jump.onDone = onJumpDone;
@@ -381,7 +395,11 @@ function updateHud(dt) {
       const g = h.pot.grade;
       setAttr(ring, 'data-grade', g.key);
       setText(E['tr-grade'], h.held || h.flailing ? g.short : 'DØDS');
-      setText(E.pot, g.key === 'smack' ? '0' : '+' + h.pot.score);
+      // La mise vaut ce que le saut ajoutera au score du run, serie comprise : le chiffre
+      // montre en l'air est celui qu'on retrouve sur la carte.
+      const bonus = keepsStreak(g) ? streakBonus(state.streak + 1) : null;
+      setText(E.pot, g.key === 'smack' ? '0' : '+' + (bonus ? Math.round(h.pot.score * bonus.mult) : h.pot.score));
+      setText(E['tr-streak'], bonus ? bonus.label : '');
       const level = GRADE_LEVEL[g.key];
       if (level !== lastLevel) { if (lastLevel >= 0 && level < 5) audio.tick(level); lastLevel = level; }
       // Le texte ne donne jamais le top : l'oeil reagit trop tard, c'est l'eau qui monte,
@@ -464,7 +482,7 @@ function setPause(v) {
 }
 
 function autoPause() {
-  held.clear();
+  clearHeld();
   if (inJump()) setPause(true);
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });
@@ -477,7 +495,12 @@ window.addEventListener('blur', autoPause);
 // termine quand le dernier se leve. Un deuxieme doigt ne fait donc rien, et la
 // repetition automatique du clavier est ignoree.
 const held = new Set();
+// Le maintien qui a lance le geste est le seul qui le termine. Un doigt fantome (un
+// pointerup perdu, un doigt pose au bord de l'ecran) ne bloque donc plus rien : il ne
+// peut ni empecher un decollage ni retenir un lacher.
+let owner = null;
 let frameStamp = performance.now(), frameRate = 1;
+function clearHeld() { held.clear(); owner = null; }
 
 // Temps ecoule entre la derniere image simulee et l'evenement, en temps de jeu.
 function lateOf(e) {
@@ -491,14 +514,19 @@ function lateOf(e) {
 function inputDown(src, e) {
   // Un maintien deja connu qui reappuie : son lacher s'est perdu (souris relachee hors de
   // la fenetre). On le solde avant de prendre le nouvel appui, sinon le jeu reste bloque.
-  if (held.has(src)) { held.delete(src); if (held.size === 0) onRelease(e); }
+  if (held.has(src)) inputUp(src, e);
   held.add(src);
   audio.unlock();
-  if (held.size === 1) onPress(e);
+  // Un second doigt pendant le geste ne fait rien. Hors geste, tout nouvel appui compte.
+  if (owner !== null) return;
+  owner = src;
+  onPress(e);
 }
 function inputUp(src, e) {
   if (!held.delete(src)) return;
-  if (held.size === 0) onRelease(e);
+  if (src !== owner) return;
+  owner = null;
+  onRelease(e);
 }
 
 function onPress(e) {
@@ -548,7 +576,7 @@ window.addEventListener('keydown', e => {
     if (e.repeat) return;
     inputDown('k' + e.code, e);
   }
-  if (e.code === 'Escape' && on('run')) { held.clear(); setPause(false); show('spots'); buildSpotList(); }
+  if (e.code === 'Escape' && on('run')) { clearHeld(); setPause(false); show('spots'); buildSpotList(); }
 });
 window.addEventListener('keyup', e => { if (isAction(e)) inputUp('k' + e.code, e); });
 

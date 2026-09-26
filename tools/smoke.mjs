@@ -1,7 +1,7 @@
 import { open } from './_page.mjs';
 
 // Pause en plein maintien, coupure du son memorisee, mouvement reduit.
-const { browser, page, errs } = await open({ render: true });
+const { browser, page, errs } = await open();
 const out = {};
 
 // 1. ecran titre puis run sur le premier spot
@@ -13,6 +13,8 @@ await page.waitForTimeout(300);
 await page.evaluate(() => { const d = window.__dods; d.paused = true; d.autoJump = 0.7; d.autoTuck = 0.15; });
 out.tickWalk = await page.evaluate(() => window.__dods.tick(120));
 out.tickFly = await page.evaluate(() => window.__dods.tick(200));
+// la carte arrive 1,25 s apres l'impact : on avance jusqu'a elle, pas d'un nombre fixe
+await page.evaluate(() => { let f = 0; while (f++ < 3000 && !document.querySelector('#s-jump').classList.contains('on')) window.__dods.tick(1); });
 out.score = await page.evaluate(() => window.__dods.state.last && { grade: window.__dods.state.last.grade.key, score: window.__dods.state.last.score });
 
 // 3. pause a la perte de focus pendant la chute
@@ -29,7 +31,7 @@ await page.evaluate(() => {
 await page.waitForTimeout(500);
 const during = await page.evaluate(() => ({ y: window.__dods.jump.pos.y, shown: document.querySelector('#pause').classList.contains('on') }));
 out.pause = { fly: before.state, gele: Math.abs(during.y - before.y) < 0.35, carton: during.shown };
-await page.screenshot({ path: 'pause.png' });
+await page.evaluate(() => window.__dods.draw()); await page.screenshot({ path: 'pause.png', timeout: 90000 });
 await page.click('#pause-resume');
 await page.waitForTimeout(400);
 out.pause.reprend = await page.evaluate(() => ({ etat: window.__dods.jump.state, ferme: window.__dods.jump.tucked }));
@@ -41,14 +43,15 @@ out.mute = await page.evaluate(() => ({ classe: document.querySelector('#sound')
 await page.reload({ waitUntil: 'load' });
 await page.waitForFunction(() => window.__dods && window.__dods.world, null, { timeout: 30000 });
 out.muteApresRechargement = await page.evaluate(() => document.querySelector('#sound').classList.contains('muted'));
+await page.evaluate(() => { window.__dods.render = false; window.__dods.quality.on = false; });
 
 // 5. mouvement reduit : la page ne casse pas et le score ne bouge pas
 await page.emulateMedia({ reducedMotion: 'reduce' });
 await page.evaluate(() => { const d = window.__dods; d.show('run'); d.startRun(); d.paused = true; d.autoJump = 0.7; d.autoTuck = 0.15; });
 await page.evaluate(() => window.__dods.tick(120));
-await page.evaluate(() => window.__dods.tick(200));
+await page.evaluate(() => { let f = 0; while (f++ < 3000 && !document.querySelector('#s-jump').classList.contains('on')) window.__dods.tick(1); });
 out.scoreMouvementReduit = await page.evaluate(() => window.__dods.state.last && { grade: window.__dods.state.last.grade.key, score: window.__dods.state.last.score });
-await page.screenshot({ path: 'run.png' });
+await page.evaluate(() => window.__dods.draw()); await page.screenshot({ path: 'run.png', timeout: 90000 });
 
 out.erreurs = errs;
 console.log(JSON.stringify(out, null, 2));

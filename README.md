@@ -41,6 +41,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.7 | le geste juste : vol bras et jambes tendus, entrée recroquevillée au dernier moment |
 | v1.8 | la fermeture devient un coup sec : 0,05 s au lieu de 0,15 s |
 | v2.0 | **un seul geste, appuyer, tenir, lâcher**, avec la mise en direct, le son de tension et le cœur ; note à l'instant du doigt et saut identique quelle que soit la fréquence d'écran ; gerbe refaite (gouttes, bruine, couronne à doigts), écume d'entrée dans la mer, nuages, clapot ; décor du spot derrière sa fiche ; résolution adaptative, zéro flou recalculé, Three.js minifié |
+| v2.1 | passe du gauntlet : la mise inclut le bonus de série, un doigt fantôme ne bloque plus rien, le bon décor derrière la fiche même en changeant vite de spot, gerbe d'un plat centrée sur le ventre, préchauffage des ombres, résolution adaptative relancée à chaque spot |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 

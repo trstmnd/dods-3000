@@ -3,7 +3,7 @@
 Ce que `ROADMAP.md` ne dit pas : ce qui a été fait, pourquoi, ce qui est vérifié
 et ce qui ne l'est pas. À lire avant de reprendre.
 
-État au 21 septembre 2026 : **v1.8 en ligne** sur https://trstmnd.github.io/dods-3000/
+État au 26 septembre 2026 : **v1.8 en ligne** sur https://trstmnd.github.io/dods-3000/, **v2.1 prête** sur la branche `v2` (preview : https://trstmnd.github.io/dods-3000/preview/v2/).
 
 ---
 
@@ -18,6 +18,8 @@ et ce qui ne l'est pas. À lire avant de reprendre.
 | v1.6 | entrée dans l'eau refaite sur la vraie mécanique du døds | le jeu inventait son atterrissage au lieu de suivre la discipline |
 | v1.7 | vol bras et jambes tendus, entrée recroquevillée | correction : j'avais lu la crevette comme un pli aux membres pendants, c'est faux |
 | v1.8 | fermeture à 0,05 s au lieu de 0,15 s | sur une fermeture tardive, le corps entrait dans l'eau à moitié ouvert |
+| v2.0 | un seul geste (appuyer, tenir, lâcher), mise en direct, son de tension et cœur, note à l'instant du doigt, parabole exacte, gerbe refaite, écume dans la mer, nuages, clapot, décor derrière la fiche, fluidité | demande : « ultra fluide, beau, gameplay novateur ». Le vol était une attente passive entre deux taps |
+| v2.1 | 7 défauts du gauntlet corrigés (2 bloquants, 5 majeurs) | voir « Le gauntlet de la v2 » plus bas |
 
 Avant tout ça : le cadrage OpenCode (`AGENTS.md`, `ROADMAP.md`, `opencode.json`)
 pour que le projet se continue avec un petit modèle.
@@ -51,6 +53,59 @@ série s'applique au cumul, le score brut du saut reste sur la même échelle qu
 v1.1. C'est ce qui permet de comparer les records d'une version à l'autre.
 
 ---
+
+## La v2 : le vol devient le jeu
+
+**Le geste.** Appuyer au bord décolle, garder appuyé tient le døds, lâcher referme. Le
+vol n'est plus un temps mort entre deux taps : c'est le doigt qui tient la planche. Le
+premier réflexe d'un joueur qui tape au lieu de tenir donne un CHICKEN, et la carte le
+dit en toutes lettres (« lâché tout de suite : garde le doigt pour rester en døds »).
+
+**La mise.** Sous l'anneau, ce que le lâcher rapporterait maintenant, série comprise.
+Elle grimpe de palier en palier puis tombe à zéro : c'est une tension de « cash out »,
+mais déterministe, donc apprenable. Le texte ne donne jamais le top : l'œil réagit trop
+tard pour viser la fenêtre dorée (0,15 à 0,20 s), c'est l'eau, l'ombre et le son qui
+doivent faire lâcher.
+
+**La précision.** La note se calcule à l'instant de l'événement (`lateOf()`), et la
+parabole est intégrée exactement. Mesuré : même lâcher à 30, 60 et 144 Hz, même note,
+même score. L'ancien Euler par image faisait tomber le plongeur plus vite que le `ttc`
+calculé, d'environ 8 ms sur une chute de 1,5 s.
+
+**Les scores restent comparables.** Même formule, mêmes fenêtres : le saut de référence
+passe de 690 à 694 points à Frognerbadet (+0,6 %, l'air time exact au lieu de l'Euler).
+La sauvegarde garde sa clé `dods3000.v1`.
+
+**Ce que la fluidité a demandé.**
+- Un monde par spot, construit et compilé à l'ouverture de la fiche, sous un fondu :
+  REJOUER ne reconstruit plus rien.
+- Le bruit du ciel, du clapot et de l'écume dans une texture de 256 × 256 calculée une
+  fois : calculé dans le shader, il coûtait 40 % de temps d'image en plus.
+- Plus de `backdrop-filter` (le flou se recalculait à chaque image au-dessus du canvas).
+- Aucune allocation par image dans la caméra, la course, les poses et le HUD ; le DOM
+  n'est écrit que quand une valeur change.
+- La pause ne redessine plus la même image soixante fois par seconde.
+- Three.js minifié : 171 ko compressés au lieu de 263.
+
+## Le gauntlet de la v2
+
+Trois vérificateurs adversariaux en contexte frais (prise en main, robustesse, beauté et
+fluidité), le doute valant FAIL. Ce qu'ils ont trouvé, et que mes propres tests ne
+voyaient pas :
+
+| Défaut | Gravité | Correction |
+|---|---|---|
+| la mise affichée ignorait le bonus de série : +1223 affiché, 1835 encaissé au 3e PERFECT | bloquant | la mise applique `streakBonus(streak + 1)` et affiche le badge sous l'anneau |
+| un doigt jamais levé (pointerup perdu) bloquait tous les décollages suivants | bloquant | le maintien qui lance le geste est seul à le terminer (`owner`), purge à chaque saut |
+| trois choix de spot rapides laissaient le décor du deuxième derrière la fiche du troisième | majeur | la comparaison se fait contre la cible du fondu en cours |
+| `applyPose()` allouait un tableau par image | majeur | liste des articulations calculée une fois |
+| la résolution adaptative se coupait pour toute la session après un essai raté | majeur | elle reprend sa veille à chaque changement de spot |
+| la gerbe d'un plat partait d'un coude, à côté du corps | majeur | à plat, la gerbe part du buste |
+| `renderer.compile()` ne compile pas la passe d'ombre | majeur | une vraie image est rendue sous le fondu, tout visible |
+
+Leçon : **un test écrit par l'auteur vérifie ce que l'auteur a pensé**. Les trois
+bloquants et majeurs de gameplay sont sortis de scénarios que je n'avais pas écrits :
+série sur trois sauts, doigt fantôme, clics rapides.
 
 ## Mes erreurs, pour ne pas les refaire
 
@@ -93,6 +148,10 @@ Tout a été mesuré dans Chromium via le harnais `tools/`, jamais à l'œil seu
 - **Le plongeur** : 165 ms de génération une seule fois au chargement, 12 200
   triangles, géométrie mise en cache et clonée par run.
 
+- **La v2** : `geste.mjs` (12 cas d'entrée réels, dont doigt fantôme et perte de focus
+  en plein maintien), `timing.mjs` (mise = score encaissé, série comprise), `serie.mjs`,
+  `leak.mjs` (géométries stables en changeant de spot), `smoke.mjs`, 37 contrôles.
+
 ## Ce qui n'est PAS vérifié
 
 - **Personne n'a joué sur un vrai téléphone depuis la v1.4.** Tout le rendu a
@@ -101,6 +160,11 @@ Tout a été mesuré dans Chromium via le harnais `tools/`, jamais à l'œil seu
 - **Le rythme** du recroquevillement et du ralenti n'a jamais été jugé manette
   en main, seulement image par image.
 - **Le son** n'a jamais été entendu : pas de sortie audio dans l'environnement.
+- **La v2 n'a jamais tourné sur un GPU.** Les mesures de coût viennent de swiftshader,
+  où une lecture de texture est chère et le calcul bon marché, l'inverse d'un téléphone.
+  Seul le rapport entre versions a un sens, et il est bruité par les autres processus
+  de la machine (dispersion x3 mesurée).
+- **Le son de tension et le cœur** n'ont jamais été entendus non plus.
 
 ---
 
