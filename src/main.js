@@ -231,8 +231,9 @@ function startRun() {
 function nextJump() {
   setPause(false);
   // Le doigt qui vient de taper la carte est peut-etre encore pose : le saut suivant
-  // commence sans geste en cours, et ce doigt-la ne compte plus.
-  owner = null;
+  // commence sans geste en cours, et ce doigt-la ne compte plus. Meme chose pour une
+  // fleche restee enfoncee : elle ne pilote pas la planche du saut suivant.
+  owner = null; keyUp = 0; keyDown = 0; steerPtr = 0;
   state.jumpIndex++;
   jump.reset(state.jumpIndex);
   jump.onDone = onJumpDone;
@@ -415,12 +416,19 @@ function updateHud(dt) {
       const tilt = h.tilt || 0;
       const planche = h.pot.planche;
       setClass(E.level, 'on', !h.flailing);
-      setStyle(E['level-bubble'], 'transform', `translateX(${(Math.max(-1, Math.min(1, tilt / 0.7)) * 70).toFixed(1)}px)`);
+      // Le niveau est vertical, comme le geste : la bulle descend quand la tete plonge, et
+      // on la remonte en remontant le doigt.
+      setStyle(E['level-bubble'], 'transform', `translateY(${(Math.max(-1, Math.min(1, tilt / 0.7)) * 62).toFixed(1)}px)`);
       setAttr(E.level, 'data-planche', planche.key);
       setText(E['level-label'], planche.key === 'aucune' ? 'PLANCHE' : `${planche.label.replace('PLANCHE ', '')} x${planche.mult}`);
       const keys = lastInput === 'key';
-      const steerHint = h.held && !h.flailing && Math.abs(tilt) > 0.24
-        ? (tilt > 0 ? (keys ? '↑ POUR REDRESSER' : 'GLISSE ↑ POUR REDRESSER') : (keys ? '↓ POUR REDRESSER' : 'GLISSE ↓ POUR REDRESSER')) : null;
+      // Sur un spot venteux, les premiers sauts disent le geste des le debut du vol ; ensuite
+      // le texte ne sort que quand la planche part vraiment, avec le sens a donner.
+      const windy = (jump.spot.wind || 0) > 0;
+      const learning = windy && (save.jumps || 0) < 8 && h.held && jump.t < 0.7;
+      const steerHint = h.held && !h.flailing && Math.abs(tilt) > 0.15
+        ? (tilt > 0 ? (keys ? '↑ POUR REDRESSER' : 'GLISSE ↑ POUR REDRESSER') : (keys ? '↓ POUR REDRESSER' : 'GLISSE ↓ POUR REDRESSER'))
+        : learning ? (keys ? '↑ ↓ POUR RESTER À PLAT' : 'GLISSE ↑ ↓ POUR RESTER À PLAT') : null;
       setPrompt(h.flailing && !h.held ? 'APPUIE, PUIS LÂCHE AVANT L\'EAU'
         : !h.held ? 'APPUIE ET TIENS' : steerHint || 'TIENS… LÂCHE JUSTE AVANT L\'EAU', h.hot && h.held && !steerHint);
       if (h.gust > 0.35 && !gustShown) { gustShown = true; toast('RAFALE'); }

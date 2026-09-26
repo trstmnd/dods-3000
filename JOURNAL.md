@@ -3,7 +3,7 @@
 Ce que `ROADMAP.md` ne dit pas : ce qui a été fait, pourquoi, ce qui est vérifié
 et ce qui ne l'est pas. À lire avant de reprendre.
 
-État au 26 septembre 2026 : **v1.8 en ligne** sur https://trstmnd.github.io/dods-3000/, **v3.0 prête** sur la branche `v3` (preview : https://trstmnd.github.io/dods-3000/preview/v3/).
+État au 26 septembre 2026 : **v1.8 en ligne** sur https://trstmnd.github.io/dods-3000/, **v3.1 prête** sur la branche `v3` (preview : https://trstmnd.github.io/dods-3000/preview/v3/).
 
 ---
 
@@ -21,6 +21,7 @@ et ce qui ne l'est pas. À lire avant de reprendre.
 | v2.0 | un seul geste (appuyer, tenir, lâcher), mise en direct, son de tension et cœur, note à l'instant du doigt, parabole exacte, gerbe refaite, écume dans la mer, nuages, clapot, décor derrière la fiche, fluidité | demande : « ultra fluide, beau, gameplay novateur ». Le vol était une attente passive entre deux taps |
 | v2.1 | 7 défauts du gauntlet corrigés (2 bloquants, 5 majeurs) | voir « Le gauntlet de la v2 » plus bas |
 | v3.0 | la planche : on redresse le corps en glissant le doigt, vent par spot, rafales fixes par saut | le gauntlet a noté que tenir restait passif : un minuteur, pas un geste |
+| v3.1 | niveau à bulle vertical, consigne du geste plus tôt, 3 mineurs de robustesse | gauntlet de la v3 |
 
 Avant tout ça : le cadrage OpenCode (`AGENTS.md`, `ROADMAP.md`, `opencode.json`)
 pour que le projet se continue avec un petit modèle.
@@ -142,7 +143,18 @@ score de x0,6 à x1,15. Décision : garder la sauvegarde. Un ancien record se ba
 facilement avec une bonne planche, ce qui ne lèse personne.
 
 **À plat en fréquence d'image** : intégrée à pas fixe (1/240 s), la planche sans pilote
-donne x0,94 à 30, 60 et 144 Hz sur Stari Most.
+est identique au bit près à 30, 60 et 144 Hz (vérifié par le gauntlet, lecture directe de
+l'inclinaison à 1 s simulée). Le score de `tools/planche.mjs` bouge encore de 0,2 % d'une
+fréquence à l'autre : c'est le lâcher automatique du test, déclenché à l'image, pas la
+planche ni le jeu.
+
+**Le gauntlet de la v3** (2 vérificateurs) : 0 bloquant, 0 majeur, 5 mineurs corrigés en
+v3.1. Le plus utile : le niveau à bulle était horizontal pour un geste vertical, il est
+passé à la verticale à droite de l'anneau ; et le sens à donner au doigt n'apparaissait
+qu'après 14° de dérapage, il sort désormais dès 9°, et dès le début du vol pendant les
+8 premiers sauts sur un spot venteux. Mesuré par un joueur simulé avec 217 ms de retard :
+bien glisser rapporte de +2 à +11 %, glisser à contresens coûte de 6 à 25 %, et ne rien
+faire à Frognerbadet garde 98 % du score maximal.
 
 ## Mes erreurs, pour ne pas les refaire
 

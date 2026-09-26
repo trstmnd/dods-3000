@@ -254,7 +254,7 @@ export class Jump {
     const gust = Math.exp(-((t - this.gustT) ** 2) / 0.06) * this.gustSign;
     return w * (swell + gust);
   }
-  gustNow() { return Math.exp(-((this.t - this.gustT) ** 2) / 0.06); }
+  gustNow() { return Math.exp(-((this.tt - this.gustT) ** 2) / 0.06); }
 
   // Un pas de la planche. Le doigt vers le haut releve la tete (inclinaison negative).
   plancheStep(h) {
@@ -483,7 +483,7 @@ export class Jump {
       h.zoneLo = 1 - w.perfectHi / span; h.zoneHi = 1 - w.perfectLo / span;
       h.hot = ttc <= w.goodHi;
       h.pot = this.potential();
-      h.tilt = this.tilt; h.wind = this.windAt(this.t); h.gust = this.gustNow() * (this.spot.wind || 0);
+      h.tilt = this.tilt; h.wind = this.windAt(this.tt); h.gust = this.gustNow() * (this.spot.wind || 0);
       return h;
     }
     h.phase = 'impact'; h.alt = 0;
