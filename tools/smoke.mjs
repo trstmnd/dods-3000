@@ -1,17 +1,7 @@
-import { chromium } from 'playwright';
+import { open } from './_page.mjs';
 
-// Chromium fourni par l'environnement, ou celui du systeme via la variable CHROME.
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const BASE = 'http://127.0.0.1:8099/?cb=' + Date.now();
-const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
-const browser = await chromium.launch({ executablePath: CHROME, proxy, args: ['--ignore-certificate-errors', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
-const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 420, height: 820 }, isMobile: false });
-const page = await ctx.newPage();
-const errs = [];
-page.on('pageerror', e => errs.push('pageerror: ' + e.message));
-page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
-await page.goto(BASE, { waitUntil: 'load' });
-await page.waitForFunction(() => window.__dods && window.__dods.world, null, { timeout: 20000 });
+// Pause en plein maintien, coupure du son memorisee, mouvement reduit.
+const { browser, page, errs } = await open({ render: true });
 const out = {};
 
 // 1. ecran titre puis run sur le premier spot
@@ -42,14 +32,14 @@ out.pause = { fly: before.state, gele: Math.abs(during.y - before.y) < 0.35, car
 await page.screenshot({ path: 'pause.png' });
 await page.click('#pause-resume');
 await page.waitForTimeout(400);
-out.pause.reprend = await page.evaluate(() => window.__dods.jump.pos.y < 0.01 ? 'arrive' : 'en chute');
+out.pause.reprend = await page.evaluate(() => ({ etat: window.__dods.jump.state, ferme: window.__dods.jump.tucked }));
 out.pause.cartonFerme = await page.evaluate(() => !document.querySelector('#pause').classList.contains('on'));
 
 // 4. coupure du son memorisee
 await page.click('#sound');
 out.mute = await page.evaluate(() => ({ classe: document.querySelector('#sound').className, store: JSON.parse(localStorage.getItem('dods3000.v1')).muted }));
 await page.reload({ waitUntil: 'load' });
-await page.waitForFunction(() => window.__dods && window.__dods.world, null, { timeout: 20000 });
+await page.waitForFunction(() => window.__dods && window.__dods.world, null, { timeout: 30000 });
 out.muteApresRechargement = await page.evaluate(() => document.querySelector('#sound').classList.contains('muted'));
 
 // 5. mouvement reduit : la page ne casse pas et le score ne bouge pas

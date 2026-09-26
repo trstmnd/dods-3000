@@ -76,32 +76,32 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
   entrait dans l'eau a moitie ouverte, et le ralenti d'un perfect etirait encore
   le mouvement.
 
-## v1.9, vers le freestyle
+## v2.0, la tension (livre)
 
-Le sujet du jeu est le geste, pas le catalogue de spots. La suite va donc vers
-les figures, toujours avec une entree propre a la fin.
+- [x] **Un seul geste : appuyer, tenir, lacher.** Le vol n'est plus une attente
+  entre deux taps : on tient le dods du doigt.
+- [x] **La mise en direct.** Ce que le lacher rapporterait maintenant, sous
+  l'anneau, avec la note qu'il donnerait.
+- [x] **Le son de tension et le coeur** qui accelerent a l'approche de l'eau.
+- [x] **La note a l'instant du doigt** et la parabole integree exactement.
+- [x] **La gerbe refaite**, l'ecume dans la mer, les nuages, le clapot.
+- [x] **Fluidite** : monde garde par spot et compile a l'avance, resolution
+  adaptative, boucle sans allocation, aucun flou recalcule.
 
-- [ ] **Choisir sa forme d'entree.** `src/game.js`, `src/main.js`, `index.html`.
-  La forme suit aujourd'hui la qualite de la fermeture. Au joueur de la choisir
-  en vol, et au scoring de valoriser la difficulte : balle, puis crevette, puis
-  sans les mains.
-  Acceptation : la forme choisie se voit avant l'entree, et le bilan la note.
+## Apres la v2.0, vers le freestyle
 
-- [ ] **Une figure en vol.** `src/diver.js`, `src/game.js`. Une rotation tenue
-  pendant la chute, qui doit se finir dans l'axe pour que l'entree compte.
-  Acceptation : la figure se lit depuis la camera laterale, et une figure ratee
-  coute le multiplicateur de forme.
+Le sujet du jeu est le geste, pas le catalogue de spots.
 
-- [ ] **Les trois notes du jury.** `src/main.js`. Anlop, vol, entree, affichees
-  separement au bilan plutot qu'un score unique.
-  Acceptation : les trois notes redonnent le score actuel, sans changer
-  d'echelle ni casser les records.
-
-- [ ] **Partage du score de run.** `index.html`, `src/main.js`. Sur l'ecran de
-  fin, un bouton qui copie "DODS 3000, <spot>, <score> pts" plus le lien du jeu,
-  via `navigator.clipboard`, avec repli sur un champ selectionnable.
-  Acceptation : un clic, un toast de confirmation, rien de casse sans
-  `clipboard`.
+- [ ] **Choisir sa forme d'entree.** La forme suit encore la qualite de la
+  fermeture. Au joueur de la choisir, et au scoring de valoriser la difficulte :
+  balle, puis crevette, puis sans les mains. A caler sur le geste unique : la
+  direction du lacher (glisser avant de lever le doigt) est la piste la plus
+  simple.
+- [ ] **Une figure en vol.** Une rotation tenue pendant la chute, qui doit se
+  finir dans l'axe pour que l'entree compte.
+- [ ] **Les trois notes du jury.** Anlop, vol, entree, affichees separement au
+  bilan, sans changer d'echelle ni casser les records.
+- [ ] **Partage du score de run** via `navigator.clipboard`, avec repli.
 
 ## Reserve, a cadrer avant d'attaquer
 

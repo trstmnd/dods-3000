@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 
 // Chromium fourni par l'environnement, ou celui du systeme via la variable CHROME.
 const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const browser = await chromium.launch({ executablePath: CHROME, proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' }, args: ['--ignore-certificate-errors'] });
+const browser = await chromium.launch({ executablePath: CHROME, proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined, args: ['--ignore-certificate-errors'] });
 const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 420, height: 820 } })).newPage();
 const errs = []; page.on('pageerror', e => errs.push(e.message));
 page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });

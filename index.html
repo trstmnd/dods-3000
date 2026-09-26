@@ -12,7 +12,9 @@
 <canvas id="scene"></canvas>
 
 <div id="vignette"></div>
+<div id="speed"></div>
 <div id="flash"></div>
+<div id="fade"></div>
 
 <!-- TITRE -->
 <section id="s-title" class="screen">
@@ -20,7 +22,7 @@
     <h1 class="logo">DODS<span>3000</span></h1>
     <p class="tag">Championnat de dødsing</p>
     <button class="btn big" data-go="spots">JOUER</button>
-    <p class="hint">Espace ou tap pour tout faire</p>
+    <p class="hint">Un seul geste : appuie, tiens, lâche</p>
     <p class="version" id="version"></p>
   </div>
 </section>
@@ -28,7 +30,7 @@
 <!-- SELECTION DE SPOT -->
 <section id="s-spots" class="screen">
   <header class="bar">
-    <button class="btn ghost" data-go="title">&lt;</button>
+    <button class="btn ghost" data-go="title" aria-label="Retour au titre">&lt;</button>
     <h2>CHOISIS TON SPOT</h2>
     <div class="total">TOTAL <b id="total-score">0</b></div>
   </header>
@@ -48,6 +50,11 @@
       <div><span id="brief-best"></span><small>record</small></div>
     </div>
     <p id="brief-note" class="note"></p>
+    <ol class="gesture" aria-label="Le geste">
+      <li><i class="g1"></i><b>APPUIE</b><small>au bord</small></li>
+      <li><i class="g2"></i><b>TIENS</b><small>tu voles en døds</small></li>
+      <li><i class="g3"></i><b>LÂCHE</b><small>juste avant l'eau</small></li>
+    </ol>
     <div class="row">
       <button class="btn ghost" data-go="spots">Retour</button>
       <button class="btn big" data-go="run">3 SAUTS, GO</button>
@@ -71,14 +78,14 @@
       <circle class="tr-zone" cx="60" cy="60" r="52"></circle>
       <circle class="tr-arc" cx="60" cy="60" r="52"></circle>
     </svg>
-    <div id="tuckring-label">DØDS</div>
+    <div id="tuckring-label"><span id="tr-grade">DØDS</span><b id="pot"></b></div>
   </div>
 
   <div id="pause">
     <div class="card pause-card">
       <h2>EN PAUSE</h2>
-      <p>L'onglet est passé en arrière plan. Le saut reprend où il s'est arrêté.</p>
-      <button class="btn big" id="pause-resume">REPRENDRE</button>
+      <p id="pause-text">L'onglet est passé en arrière plan. Le saut reprend où il s'est arrêté.</p>
+      <div class="hold-target" id="pause-resume" role="button" tabindex="0">REPRENDRE</div>
     </div>
   </div>
 
@@ -108,6 +115,7 @@
     </div>
     <ul class="breakdown" id="jr-lines"></ul>
     <button class="btn big" id="jr-next">SUITE</button>
+    <p class="tap-hint">ou tape n'importe où</p>
   </div>
 </section>
 
@@ -142,9 +150,9 @@
      Chrome 127, Firefox 138 et Safari 18.4 appliquent la cle, les versions d'avant l'ignorent. -->
 <script type="importmap">
 {
-  "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" },
+  "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js" },
   "integrity": {
-    "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js": "sha384-GY5FqjttLCFRt/McQbyaVdCk2O1IQtOeX8Py6NfD89BIAsIyJFRl4UgSXrk2vXAk"
+    "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js": "sha384-IDC7sAMAIMB/TZ6dgKKPPAKZ2bXXXP8+FBMBC8cU319eBhKITx+PaalhfDkDNH28"
   }
 }
 </script>

@@ -285,9 +285,16 @@ export function createDiver() {
 
   root.updateMatrixWorld(true); // pose de repos : c'est elle qui sert de reference au skinning
   const skeleton = new THREE.Skeleton(bones);
-  const mesh = new THREE.SkinnedMesh(bodyGeometry(order), new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.64, metalness: 0.02
-  }));
+  const skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.64, metalness: 0.02 });
+  // Un liseré de lumière sur la silhouette : contre une mer ou une falaise de même valeur,
+  // le plongeur se détache sans qu'on force son éclairage.
+  skinMat.onBeforeCompile = sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
+      float rimF = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+      gl_FragColor.rgb += pow(rimF, 3.0) * 0.32 * vec3(1.0, 0.94, 0.82);`);
+  };
+  skinMat.customProgramCacheKey = () => 'diver-rim';
+  const mesh = new THREE.SkinnedMesh(bodyGeometry(order), skinMat);
   mesh.castShadow = true;
   root.add(mesh);
   mesh.bind(skeleton, new THREE.Matrix4());
@@ -354,15 +361,16 @@ export function applyPose(joints, pose, blend = 1, extra = null) {
   }
 }
 
-// Cycle de course : on surcharge les membres par-dessus la pose 'stand'.
+// Cycle de course : on surcharge les membres par-dessus la pose 'stand'. Un seul objet
+// reecrit a chaque image : la course ne produit plus de dechets pour le ramasse-miettes.
+const RUN = { shL: [0, 0, 0.18], shR: [0, 0, -0.18], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [0, 0, 0.05], hipR: [0, 0, -0.05], knL: [0, 0, 0], knR: [0, 0, 0], body: [0, 0, 0] };
 export function runPose(t, speed = 1) {
   const p = t * 9 * speed;
   const s = Math.sin(p), c = Math.sin(p + Math.PI);
-  return {
-    shL: [c * 0.9, 0, 0.18], shR: [s * 0.9, 0, -0.18],
-    elL: [-0.9 - Math.max(0, c) * 0.5, 0, 0.1], elR: [-0.9 - Math.max(0, s) * 0.5, 0, -0.1],
-    hipL: [s * 0.95, 0, 0.05], hipR: [c * 0.95, 0, -0.05],
-    knL: [-0.35 - Math.max(0, -s) * 1.4, 0, 0], knR: [-0.35 - Math.max(0, -c) * 1.4, 0, 0],
-    body: [0.14 + Math.abs(s) * 0.05, 0, 0]
-  };
+  RUN.shL[0] = c * 0.9; RUN.shR[0] = s * 0.9;
+  RUN.elL[0] = -0.9 - Math.max(0, c) * 0.5; RUN.elR[0] = -0.9 - Math.max(0, s) * 0.5;
+  RUN.hipL[0] = s * 0.95; RUN.hipR[0] = c * 0.95;
+  RUN.knL[0] = -0.35 - Math.max(0, -s) * 1.4; RUN.knR[0] = -0.35 - Math.max(0, -c) * 1.4;
+  RUN.body[0] = 0.14 + Math.abs(s) * 0.05;
+  return RUN;
 }

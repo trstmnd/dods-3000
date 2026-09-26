@@ -6,8 +6,8 @@ commencer : il evite d'ouvrir les 8 modules pour comprendre le projet.
 ## Ce que c'est
 
 Jeu de dodsing 3D, navigateur, zero build, zero dependance npm. Three.js arrive
-par importmap depuis jsDelivr, version epinglee et verifiee par `integrity` dans
-`index.html`. Tout est genere en code : falaise, eau, plongeur, son. Aucun asset binaire.
+par importmap depuis jsDelivr (build minifie depuis la v2.0), version epinglee et
+verifiee par `integrity` dans `index.html`. Tout est genere en code : falaise, eau, plongeur, son. Aucun asset binaire.
 
 Publie sur https://trstmnd.github.io/dods-3000/ par le workflow
 `.github/workflows/pages.yml` : `main` va a la racine, toute autre branche va
@@ -61,7 +61,25 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    aux fenetres de timing casserait l'equilibrage.
 10. **Une scene se libere.** `buildWorld()` alloue sur le GPU et Three.js ne rend
    rien tout seul : tout monde remplace passe par `world.dispose()`, et ce qui
-   sort de la scene avant elle se libere lui-meme (`disposeTree`).
+   sort de la scene avant elle se libere lui-meme (`disposeTree`). Depuis la
+   v2.0 un monde est garde tant qu'on reste sur son spot (`useWorld()`).
+11. **Un seul geste par saut : appuyer, tenir, lacher.** `Jump.down()` decolle
+   (ou reprend la main en vol), `Jump.up()` referme. Tout ce qui tient un appui
+   (clavier, doigts, souris) alimente le meme ensemble `held` de `src/main.js` :
+   le geste finit quand le dernier maintien se leve. Ajouter une entree veut dire
+   l'y brancher, jamais appeler `tuck()` a cote.
+12. **La note se calcule a l'instant du doigt.** `lateOf(e)` mesure le temps entre
+   la derniere image simulee et l'evenement, et `jump()`/`tuck()` prolongent la
+   parabole d'autant. Ne jamais repasser a une note lue a l'image suivante.
+13. **La parabole est integree exactement** (`y += vy dt - g dt^2 / 2`) : le saut
+   est le meme a toutes les frequences d'ecran, et le `ttc` affiche est vrai.
+14. **Une seule fonction de note**, `gradeAt()`, sert au verdict et a la mise
+   affichee en direct : le chiffre montre pendant la chute vaut exactement ce que
+   le lacher encaisse (`tools/timing.mjs` le verifie).
+15. **La boucle chaude n'alloue rien et n'ecrit dans le DOM que ce qui change**
+   (`setText`, `setStyle`, `setClass`, `setAttr`). Pas de `backdrop-filter`, pas
+   de bruit calcule par pixel dans un shader : la texture `noiseData()` sert le
+   ciel, le clapot et l'ecume.
 
 ## Ou regarder avant de commencer
 
@@ -73,9 +91,10 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
 ## Boucle de travail
 
 ```bash
-./check.sh                  # 29 controles deterministes, ni reseau ni navigateur
+./check.sh                  # 37 controles deterministes, ni reseau ni navigateur
 python3 -m http.server 8012 # puis http://localhost:8012/?cb=<n>
-./tools/run.sh timing.mjs   # les quatre cas de fermeture, dans un vrai navigateur
+./tools/run.sh timing.mjs   # les quatre cas de fermeture et la mise, dans un vrai navigateur
+./tools/run.sh geste.mjs    # clavier, souris, deux doigts, perte de focus, lacher perdu
 ```
 
 Le `?cb=<n>` n'est pas decoratif : le serveur local n'envoie pas de
@@ -86,8 +105,9 @@ Pour tester le timing, la page expose `window.__dods` :
 
 ```js
 __dods.paused = true;   // fige la boucle rAF
-__dods.autoJump = 0.7;  // decolle a 0,7 m du bord
-__dods.autoTuck = 0.15; // se referme a 0,15 s de l'impact
+__dods.render = false;  // tick() ne dessine plus (logique 50 fois plus rapide)
+__dods.autoJump = 0.7;  // appuie a 0,7 m du bord et garde appuye
+__dods.autoTuck = 0.15; // lache a 0,15 s de l'impact
 __dods.tick(60);        // avance 60 frames de 1/60 s et rend l'etat
 ```
 

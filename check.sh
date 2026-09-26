@@ -63,7 +63,17 @@ t "aucun tiret cadratin" "! grep -rlP '\xe2\x80\x94' index.html style.css src/ R
 t "AGENTS.md present" "[ -f AGENTS.md ]"
 t "opencode.json valide" "node -e \"JSON.parse(require('fs').readFileSync('opencode.json','utf8'))\""
 
-# 8. la version affichee existe et est unique
+# 8. les invariants de la v2 : un geste, une note, une boucle sans dechets
+t "une seule fonction de note (verdict et mise)" "[ \$(grep -c 'gradeAt(' src/game.js) -ge 3 ]"
+t "note a l'instant du doigt (late)" "grep -q 'jump.down(late)' src/main.js && grep -q 'jump.up(late)' src/main.js"
+t "parabole integree exactement" "grep -q '0.5 \\* g \\* step \\* step' src/game.js"
+t "camera sans allocation par image" "! awk '/^  placeCamera\\(k\\) \\{/,/^  \\}/' src/game.js | grep -q 'new THREE'"
+t "pas de backdrop-filter (flou recalcule a chaque image)" "! grep -q 'backdrop-filter:' style.css"
+t "appui long sans defilement ni zoom" "grep -q 'canvas#scene{[^}]*touch-action:none' style.css"
+t "repetition clavier ignoree" "grep -q 'if (e.repeat) return;' src/main.js"
+t "three minifie et verifie" "grep -q 'three.module.min.js' index.html"
+
+# 9. la version affichee existe et est unique
 t "version exposee" "grep -qE \"^export const VERSION = 'v[0-9]+\\.[0-9]+'\" src/main.js"
 t "version injectee dans la page" "grep -q 'id=\"version\"' index.html"
 

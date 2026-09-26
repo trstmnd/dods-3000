@@ -19,6 +19,66 @@ export function waveHeight(x, z, t) {
   return h;
 }
 
+// Une texture de bruit periodique, calculee une fois en JS : la mer et le ciel la lisent
+// en une ou deux lectures par pixel. Le meme bruit calcule dans le shader coutait huit
+// appels par pixel de ciel et six par pixel de mer, soit 40 % de temps d'image en plus.
+// Canaux : R hauteur, G et B pente en x et en z (pour le clapot), A second bruit (ecume).
+const NOISE_N = 256, NOISE_P = 16;
+let NOISE_DATA = null;
+function noiseData() {
+  if (NOISE_DATA) return NOISE_DATA;
+  const N = NOISE_N;
+  const hash = (x, y, s) => {
+    let v = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ s;
+    v = Math.imul(v ^ (v >>> 13), 1274126177);
+    return ((v ^ (v >>> 16)) >>> 0) / 4294967296;
+  };
+  const wrap = (v, p) => ((v % p) + p) % p;
+  // bruit de valeur periodique : la texture se repete sans couture
+  const vn = (x, y, p, s) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const x0 = wrap(xi, p), x1 = wrap(xi + 1, p), y0 = wrap(yi, p), y1 = wrap(yi + 1, p);
+    const a = hash(x0, y0, s), b = hash(x1, y0, s), c = hash(x0, y1, s), d = hash(x1, y1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  };
+  const fbm = (i, j, oct, seed) => {
+    let sum = 0, amp = 0.5, per = NOISE_P;
+    for (let o = 0; o < oct; o++) { sum += amp * vn(i / N * per, j / N * per, per, seed + o * 31); amp *= 0.5; per *= 2; }
+    return sum;
+  };
+  const h = new Float32Array(N * N), f = new Float32Array(N * N);
+  let hMin = 1e9, hMax = -1e9, fMin = 1e9, fMax = -1e9;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a = fbm(i, j, 5, 7), b = fbm(i, j, 4, 911);
+    h[j * N + i] = a; f[j * N + i] = b;
+    hMin = Math.min(hMin, a); hMax = Math.max(hMax, a); fMin = Math.min(fMin, b); fMax = Math.max(fMax, b);
+  }
+  const data = new Uint8Array(N * N * 4);
+  const H = (i, j) => (h[wrap(j, N) * N + wrap(i, N)] - hMin) / (hMax - hMin);
+  let gMax = 1e-6;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) gMax = Math.max(gMax, Math.abs(H(i + 1, j) - H(i - 1, j)), Math.abs(H(i, j + 1) - H(i, j - 1)));
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = (j * N + i) * 4;
+    data[k] = Math.round(H(i, j) * 255);
+    data[k + 1] = Math.round((0.5 + 0.5 * (H(i + 1, j) - H(i - 1, j)) / gMax) * 255);
+    data[k + 2] = Math.round((0.5 + 0.5 * (H(i, j + 1) - H(i, j - 1)) / gMax) * 255);
+    data[k + 3] = Math.round((f[j * N + i] - fMin) / (fMax - fMin) * 255);
+  }
+  NOISE_DATA = data;
+  return data;
+}
+// Une texture par monde, depuis les memes octets : elle part avec le monde a sa liberation.
+function noiseTexture() {
+  const t = new THREE.DataTexture(noiseData(), NOISE_N, NOISE_N, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
+
 // L'onde circulaire laissee par l'entree du plongeur. Elle vit dans les deux etages :
 // un relief discret au sommet, une crete d'ecume nette au fragment. Purement visuelle,
 // la physique du saut ne lit jamais la hauteur de l'eau.
@@ -39,7 +99,24 @@ const RIPPLE = `
   }
 `;
 
-function waterMaterial(pal, sunDir) {
+// L'ecume qui reste a la surface apres l'entree. Elle vit DANS la mer : un disque pose
+// au-dessus de l'eau passait sous les cretes des vagues et flottait au-dessus des creux.
+const IMPACT_FOAM = `
+  float impactFoam(vec2 xz){
+    float age = uTime - uImpact.z;
+    if (age < 0.0 || age > 6.0) return 0.0;
+    float d = distance(xz, uImpact.xy);
+    // hors du disque d'ecume, on sort avant le bruit : c'est presque toute la mer
+    if (d > 8.5) return 0.0;
+    float R = (1.3 + 3.4 * (1.0 - exp(-age * 1.3))) * (0.7 + 0.45 * uImpactPow);
+    float body = 1.0 - smoothstep(R * 0.45, R, d);
+    float n = texture2D(uNoise, (xz * 1.7 + vec2(age * 0.35, -age * 0.22) + uImpact.xy * 0.37) / 16.0).a;
+    float lace = smoothstep(0.46, 0.66, n + body * 0.3 - age * 0.03);
+    return lace * body * (1.0 - smoothstep(1.4, 6.0, age));
+  }
+`;
+
+function waterMaterial(pal, sunDir, noise) {
   const consts = WAVES.map((w, i) =>
     `const vec4 W${i} = vec4(${w.ax.toFixed(3)}, ${w.az.toFixed(3)}, ${w.k.toFixed(3)}, ${w.spd.toFixed(3)});
      const float A${i} = ${w.amp.toFixed(4)};`).join('\n');
@@ -55,7 +132,9 @@ function waterMaterial(pal, sunDir) {
       uFogDensity: { value: pal.fogDensity },
       uSky: { value: new THREE.Color(pal.sky[0]) },
       // x, z du point d'entree et date de l'impact, en temps de simulation
-      uImpact: { value: new THREE.Vector3(0, 0, -99) }
+      uImpact: { value: new THREE.Vector3(0, 0, -99) },
+      uImpactPow: { value: 1 },
+      uNoise: { value: noise }
     },
     vertexShader: `
       ${consts}
@@ -87,12 +166,23 @@ function waterMaterial(pal, sunDir) {
       }`,
     fragmentShader: `
       uniform vec3 uShallow, uDeep, uSun, uSunDir, uFog, uSky;
-      uniform float uFogDensity, uTime;
+      uniform float uFogDensity, uTime, uImpactPow;
       uniform vec3 uImpact;
+      uniform sampler2D uNoise;
       varying vec3 vWorld; varying float vWave; varying vec3 vNormalW; varying float vDepth;
       ${RIPPLE}
+      ${IMPACT_FOAM}
       void main(){
         vec3 N = normalize(vNormalW);
+        // Le maillage porte la houle, le fragment porte le clapot : deux couches de bruit
+        // qui derivent en sens contraire cassent les bandes lisses de pres. Au loin elles
+        // s'eteignent, sinon elles scintillent en moire.
+        float near = 1.0 - smoothstep(18.0, 90.0, vDepth);
+        if (near > 0.0) {
+          vec2 g1 = texture2D(uNoise, vWorld.xz * 0.053 + vec2(uTime * 0.02, uTime * 0.011)).gb - 0.5;
+          vec2 g2 = texture2D(uNoise, vWorld.xz * 0.131 - vec2(uTime * 0.013, -uTime * 0.023)).gb - 0.5;
+          N = normalize(N - vec3(g1.x * 0.55 + g2.x * 0.3, 0.0, g1.y * 0.55 + g2.y * 0.3) * near);
+        }
         vec3 V = normalize(cameraPosition - vWorld);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 3.5);
         float d = length(vWorld.xz - vec2(0.0, 6.0));
@@ -112,13 +202,17 @@ function waterMaterial(pal, sunDir) {
         foam *= (0.5 + 0.5 * sin(vWorld.x * 1.7 + uTime * 2.3)) * (0.55 + 0.45 * sin(vWorld.x * 0.61 - uTime * 1.4));
         foam = max(foam, rippleBand(vWorld.xz) * 0.8);
         col = mix(col, vec3(0.93, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.6);
+        // l'eau blanche de l'entree, et l'eau claire et turquoise qu'elle laisse dessous
+        float imp = impactFoam(vWorld.xz);
+        col = mix(col, uShallow * 1.6 + 0.08, clamp(imp * 3.0, 0.0, 1.0) * 0.25);
+        col = mix(col, vec3(0.95, 0.99, 1.0), imp * 0.92);
         float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
         gl_FragColor = vec4(mix(col, uFog, clamp(f, 0.0, 1.0)), 1.0);
       }`
   });
 }
 
-function skyDome(pal) {
+function skyDome(pal, noise) {
   const geo = new THREE.SphereGeometry(900, 32, 20);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
@@ -126,15 +220,31 @@ function skyDome(pal) {
       uTop: { value: new THREE.Color(pal.sky[0]) },
       uBottom: { value: new THREE.Color(pal.sky[1]) },
       uSun: { value: new THREE.Color(pal.sun) },
-      uSunDir: { value: new THREE.Vector3(...pal.sunPos).normalize() }
+      uSunDir: { value: new THREE.Vector3(...pal.sunPos).normalize() },
+      uCover: { value: pal.clouds ?? 0.35 },
+      uTime: { value: 0 },
+      uNoise: { value: noise }
     },
     vertexShader: `varying vec3 vDir;
       void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `uniform vec3 uTop, uBottom, uSun, uSunDir; varying vec3 vDir;
+    fragmentShader: `uniform vec3 uTop, uBottom, uSun, uSunDir; uniform float uCover, uTime; uniform sampler2D uNoise; varying vec3 vDir;
       void main(){
-        float h = clamp(vDir.y * 1.25 + 0.16, 0.0, 1.0);
+        vec3 d = normalize(vDir);
+        float h = clamp(d.y * 1.25 + 0.16, 0.0, 1.0);
         vec3 col = mix(uBottom, uTop, pow(h, 0.75));
-        float sd = max(dot(normalize(vDir), normalize(uSunDir)), 0.0);
+        float sd = max(dot(d, normalize(uSunDir)), 0.0);
+        // Des nuages projetes sur un plafond : ils s'ecrasent vers l'horizon comme de vrais
+        // nuages, et donnent a la chute une echelle que le ciel uni n'avait pas.
+        if (d.y > 0.0 && uCover > 0.0) {
+          vec2 uv = d.xz / (d.y + 0.09) * 0.9 + vec2(uTime * 0.006, uTime * 0.002);
+          float n = texture2D(uNoise, uv * 0.078).r * 0.9 + (texture2D(uNoise, uv * 0.19 + 0.37).a - 0.5) * 0.35;
+          float c = smoothstep(1.0 - uCover, 1.0 - uCover + 0.32, n);
+          c *= smoothstep(0.0, 0.14, d.y);
+          vec3 lit = mix(vec3(1.0), uSun, 0.35) * (0.92 + 0.35 * pow(sd, 4.0));
+          vec3 shade = mix(uBottom, uTop, 0.35) * 0.95;
+          vec3 cloud = mix(shade, lit, smoothstep(0.35, 0.95, n));
+          col = mix(col, cloud, c * 0.88);
+        }
         col += uSun * pow(sd, 260.0) * 2.2;
         col += uSun * pow(sd, 9.0) * 0.28;
         gl_FragColor = vec4(col, 1.0);
@@ -291,7 +401,13 @@ function decor(spot, group, rnd) {
     group.add(g);
   };
   const kind = ['ricks', 'comino'].includes(spot.id) ? 'palm' : (spot.id === 'lysefjord' ? 'pine' : null);
-  if (kind) for (let i = 0; i < 9; i++) tree((rnd() - 0.5) * 40, -6 - rnd() * 30, kind);
+  // Aucun arbre dans le couloir de la camera de course : en portrait, un pin plante a
+  // deux metres de la piste bouchait tout l'ecran pendant l'elan.
+  if (kind) for (let i = 0; i < 9; i++) {
+    const x = (rnd() - 0.5) * 40, z = -6 - rnd() * 30;
+    if (Math.abs(x) < 7 && z > -24) continue;
+    tree(x, z, kind);
+  }
 }
 
 // Three.js ne libere rien tout seul. Sans ce passage, chaque run laissait sa falaise,
@@ -322,7 +438,8 @@ export function buildWorld(spot, renderer) {
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(new THREE.Color(pal.fog), pal.fogDensity);
 
-  scene.add(skyDome(pal));
+  const noise = noiseTexture();
+  scene.add(skyDome(pal, noise));
 
   const sunDir = new THREE.Vector3(...pal.sunPos);
   const sun = new THREE.DirectionalLight(new THREE.Color(pal.sun), 3.3);
@@ -343,7 +460,7 @@ export function buildWorld(spot, renderer) {
 
   const waterGeo = new THREE.PlaneGeometry(1200, 1200, 128, 128);
   waterGeo.rotateX(-Math.PI / 2);
-  const waterMat = waterMaterial(pal, sunDir);
+  const waterMat = waterMaterial(pal, sunDir, noise);
   const water = new THREE.Mesh(waterGeo, waterMat);
   water.position.z = 60;
   water.renderOrder = -1;
@@ -355,5 +472,11 @@ export function buildWorld(spot, renderer) {
   decor(spot, cliffGroup, rnd);
   scene.add(cliffGroup);
 
-  return { scene, water, waterMat, sun, sunDir, dispose() { disposeTree(scene); } };
+  const sky = scene.children.find(o => o.isMesh && o.material.uniforms && o.material.uniforms.uCover);
+  return {
+    scene, water, waterMat, sun, sunDir, spot,
+    // un seul temps de simulation pour la mer et le ciel
+    setTime(t) { waterMat.uniforms.uTime.value = t; if (sky) sky.material.uniforms.uTime.value = t; },
+    dispose() { disposeTree(scene); }
+  };
 }

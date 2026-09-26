@@ -1,13 +1,6 @@
-import { chromium } from 'playwright';
+import { open } from './_page.mjs';
 
-// Chromium fourni par l'environnement, ou celui du systeme via la variable CHROME.
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const browser = await chromium.launch({ executablePath: CHROME, proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' }, args: ['--ignore-certificate-errors'] });
-const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 420, height: 820 } })).newPage();
-const errs = []; page.on('pageerror', e => errs.push(e.message));
-page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-await page.goto('http://127.0.0.1:8099/?cb=' + Date.now(), { waitUntil: 'load' });
-await page.waitForFunction(() => window.__dods, null, { timeout: 20000 });
+const { browser, page, errs } = await open();
 // trois sauts parfaits d affilee, puis un run ou le deuxieme saut est rate
 const out = await page.evaluate(async () => {
   const d = window.__dods;

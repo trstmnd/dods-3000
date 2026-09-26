@@ -23,19 +23,21 @@ une fois pour toutes :
 
 ```bash
 cd tools && npm i three@0.170.0
-mkdir -p vendor && cp node_modules/three/build/three.module.js vendor/
+mkdir -p vendor && cp node_modules/three/build/three.module.min.js vendor/
 ```
 
-`run.sh` réécrit alors l'importmap vers cette copie. Sans ce fichier, la page
+Le fichier copié doit porter le nom exact que l'importmap réclame (`three.module.min.js` depuis la v2.0) : le hash d'integrity doit correspondre octet pour octet. `run.sh` réécrit alors l'importmap vers cette copie. Sans ce fichier, la page
 est servie telle quelle et va chercher Three.js sur jsDelivr.
 
 ## Les scénarios
 
 | Script | Ce qu'il répond |
 |---|---|
-| `timing.mjs` | les quatre cas de fermeture donnent-ils le bon verdict et le bon score |
+| `timing.mjs` | les quatre cas de fermeture donnent-ils le bon verdict et le bon score, et la mise affichée vaut-elle ce que le lâcher encaisse |
+| `geste.mjs` | le geste avec de vrais événements : clavier et répétition, souris, deux doigts, `pointercancel`, perte de focus en plein maintien, lâcher perdu, focus d'un bouton, carte de résultat, menu contextuel, précision de l'instant du doigt |
+| `perf.mjs [port]` | coût d'une image par phase et mémoire allouée par image ; servir une autre version sur un autre port pour comparer |
 | `serie.mjs` | le multiplicateur de série compte-t-il juste sur deux runs |
-| `leak.mjs` | le nombre de géométries GPU reste-t-il stable run après run |
+| `leak.mjs` | le nombre de géométries GPU reste-t-il stable run après run, en changeant de spot |
 | `vitesse.mjs` | combien de temps et de mètres prend le recroquevillement |
 | `entree.mjs <ttc> <nom>` | suite d'images autour de l'entrée dans l'eau |
 | `pose.mjs "shrimp:1.95,bullet:2.15"` | une pose donnée, contre la ligne d'eau |
@@ -44,6 +46,8 @@ est servie telle quelle et va chercher Three.js sur jsDelivr.
 | `smoke.mjs` | pause, coupure du son, rechargement |
 
 Les captures sortent dans `tools/`. Elles ne sont pas versionnées.
+
+`_page.mjs` ouvre la page pour tous les scénarios, en rendu logiciel (swiftshader) et sans dessiner à chaque tick : sous swiftshader une image coûte une à deux dixièmes de seconde, donc un scénario de logique qui dessine tout prend des minutes. Pour une capture, `__dods.draw()` dessine une seule image. Les millisecondes de `perf.mjs` ne disent rien d'un téléphone, seul le rapport entre deux versions mesurées sur la même machine a un sens.
 
 ## Pourquoi ne pas s'en passer
 
