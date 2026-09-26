@@ -16,7 +16,7 @@ export async function open({ width = 420, height = 820, render = false, touch = 
   const errs = [];
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
-  await page.goto('http://127.0.0.1:8099/?cb=' + Date.now(), { waitUntil: 'load' });
+  await page.goto('http://127.0.0.1:' + (process.env.PORT || '8099') + '/?cb=' + Date.now(), { waitUntil: 'load' });
   await page.waitForFunction(() => window.__dods && window.__dods.world, null, { timeout: 30000 });
   await page.evaluate(r => { window.__dods.render = r; window.__dods.quality.on = false; }, render);
   return { browser, page, errs };
