@@ -1,17 +1,24 @@
 import * as THREE from 'three';
 import { createDiver, applyPose, runPose, POSES, LANDINGS } from './diver.js';
 import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
+import { mulberry32, seedFromString } from './noise.js';
 
 export const TUNING = {
   gravity: 13.5,
   runSpeed: 4.3,
   // fenetres de decollage, en metres avant le bord
   takeoff: [
-    { max: 1.15, label: 'DÉCOLLAGE PARFAIT', mult: 1.25, vy: 5.5, vz: 3.9 },
-    { max: 2.6, label: 'BON DÉCOLLAGE', mult: 1.0, vy: 4.7, vz: 3.4 },
-    { max: 99, label: 'TROP TÔT', mult: 0.75, vy: 3.4, vz: 4.4 }
+    // drift : le couple qui fait piquer la planche du nez au depart. Un bon appel
+    // part droit, un appel rate part en rotation et oblige a se redresser.
+    { max: 1.15, label: 'DÉCOLLAGE PARFAIT', mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
+    { max: 2.6, label: 'BON DÉCOLLAGE', mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
+    { max: 99, label: 'TROP TÔT', mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
   ],
-  noJump: { label: 'PAS DE DÉCOLLAGE', mult: 0.5, vy: 0.2, vz: 1.9 },
+  noJump: { label: 'PAS DE DÉCOLLAGE', mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
+  // La planche (v3) : l'ecart d'inclinaison du corps a l'horizontale ideale, en radians.
+  // Le doigt commande une inclinaison, le corps la suit avec un peu de retard, le vent et
+  // l'elan le poussent. Integree a pas fixe : le meme saut a toutes les frequences.
+  planche: { cmdMax: 0.9, stiff: 9, damp: 4.5, wind: 7.5, step: 1 / 240 },
   // fenetres de tuck, en secondes avant l'impact
   grades: [
     { key: 'perfect', label: 'PERFECT DØDS', short: 'PERFECT', mult: 3.0, color: '#ffd447' },
@@ -33,6 +40,16 @@ export const TUNING = {
 };
 
 export const GRADE = Object.fromEntries(TUNING.grades.map(g => [g.key, g]));
+
+// Ce que vaut la planche, d'apres l'ecart moyen tenu pendant le vol. Le multiplicateur
+// est arrondi au centieme : le chiffre affiche est celui qui compte.
+const r2 = v => Math.round(v * 100) / 100;
+export function plancheAt(mean) {
+  if (mean <= 0.07) return { key: 'parfaite', label: 'PLANCHE PARFAITE', mult: 1.15, mean };
+  if (mean <= 0.21) return { key: 'tenue', label: 'PLANCHE TENUE', mult: r2(1.15 - (mean - 0.07) / 0.14 * 0.15), mean };
+  return { key: 'bancale', label: 'PLANCHE BANCALE', mult: r2(Math.max(0.6, 1 - (mean - 0.21) / 0.6 * 0.4)), mean };
+}
+const NO_PLANCHE = { key: 'aucune', label: 'SANS PLANCHE', mult: 1, mean: 0 };
 
 // Un saut compte pour la serie quand son multiplicateur de timing vaut au moins GREAT.
 export function keepsStreak(grade) { return !!grade && grade.mult >= TUNING.streakFrom; }
@@ -93,8 +110,16 @@ export class Jump {
     this.reset();
   }
 
-  reset() {
+  // n : numero du saut dans le run. Il fixe les rafales : le saut 2 de Mostar souffle
+  // pareil pour tout le monde, ce qui rend les scores comparables.
+  reset(n = 0) {
     this.state = 'walk';
+    const rnd = mulberry32(seedFromString(this.spot.id) + n * 7919);
+    this.windSeed = rnd() * 100;
+    this.gustT = 0.45 + rnd() * 0.8;
+    this.gustSign = rnd() < 0.5 ? -1 : 1;
+    this.tilt = 0; this.tiltV = 0; this.tiltSum = 0; this.tiltT = 0; this.pAcc = 0; this.tt = 0;
+    this.steer = 0;
     this.t = 0;
     this.pos = this.pos || new THREE.Vector3();
     this.pos.set(0, this.spot.height, RUN_START_Z);
@@ -166,6 +191,7 @@ export class Jump {
     this.vel.set(0, t.vy, t.vz);
     this.state = 'fly';
     this.t = 0;
+    this.tt = 0; this.pAcc = 0;
     // la prochaine image ne doit simuler que le vol ecoule depuis le doigt
     this.skew = late;
     this.audio?.jump();
@@ -173,6 +199,7 @@ export class Jump {
   }
 
   fall() {
+    this.tt = 0; this.pAcc = 0;
     this.takeoff = TUNING.noJump;
     this.vel.set(0, TUNING.noJump.vy, TUNING.noJump.vz);
     this.state = 'fly';
@@ -191,6 +218,7 @@ export class Jump {
     this.tucked = true;
     this.held = false;
     this.tuckTtc = ttc;
+    this.plancheRes = this.planche();
     this.styleTime = this.t + late;
     let grade = gradeAt(ttc, this.win);
     if (this.flailing && grade.key !== 'smack') grade = GRADE.early;
@@ -203,11 +231,42 @@ export class Jump {
     return true;
   }
 
-  scoreFor(grade, styleTime) {
+  // La planche tenue jusqu'ici. Sans decollage il n'y a pas de planche a juger.
+  planche() {
+    if (this.flailing || !this.tiltT) return NO_PLANCHE;
+    return plancheAt(this.tiltSum / this.tiltT);
+  }
+
+  scoreFor(grade, styleTime, planche = NO_PLANCHE) {
     const base = Math.round(this.spot.height * TUNING.baseRate);
     const style = Math.round(styleTime * TUNING.styleRate * Math.sqrt(this.spot.height / 12));
-    const score = grade.key === 'smack' ? 0 : Math.round((base + style) * grade.mult * this.takeoff.mult);
+    const score = grade.key === 'smack' ? 0 : Math.round((base + style) * grade.mult * this.takeoff.mult * planche.mult);
     return { base, style, score };
+  }
+
+  // Les rafales du spot : deux houles lentes et une rafale franche par saut, a un moment
+  // fixe par la graine. Sans signe de la main du joueur, elles font basculer la planche.
+  windAt(t) {
+    const w = this.spot.wind || 0;
+    if (!w) return 0;
+    const s = this.windSeed;
+    const swell = Math.sin(t * 1.1 + s) * 0.45 + Math.sin(t * 2.7 + s * 1.7) * 0.25;
+    const gust = Math.exp(-((t - this.gustT) ** 2) / 0.06) * this.gustSign;
+    return w * (swell + gust);
+  }
+  gustNow() { return Math.exp(-((this.t - this.gustT) ** 2) / 0.06); }
+
+  // Un pas de la planche. Le doigt vers le haut releve la tete (inclinaison negative).
+  plancheStep(h) {
+    const P = TUNING.planche;
+    const cmd = -P.cmdMax * Math.max(-1, Math.min(1, this.steer));
+    const drift = (this.takeoff.drift || 0) * Math.exp(-this.tt / 0.8);
+    const torque = P.stiff * (cmd - this.tilt) - P.damp * this.tiltV + P.wind * this.windAt(this.tt) + drift;
+    this.tiltV += torque * h;
+    this.tilt = Math.max(-1.2, Math.min(1.2, this.tilt + this.tiltV * h));
+    this.tiltSum += Math.abs(this.tilt) * h;
+    this.tiltT += h;
+    this.tt += h;
   }
 
   // Ce que le joueur encaisserait s'il lachait maintenant. C'est la mise en jeu : elle
@@ -218,7 +277,8 @@ export class Jump {
     let grade = gradeAt(ttc, this.win);
     if (this.flailing && grade.key !== 'smack') grade = GRADE.early;
     const p = this._pot || (this._pot = {});
-    p.grade = grade; p.score = this.scoreFor(grade, this.t).score; p.ttc = ttc;
+    p.planche = this.planche();
+    p.grade = grade; p.score = this.scoreFor(grade, this.t, p.planche).score; p.ttc = ttc;
     return p;
   }
 
@@ -244,10 +304,18 @@ export class Jump {
       this.vel.y -= g * step;
       if (!this.tucked) {
         this.styleTime = this.t;
+        if (!this.flailing) {
+          // la planche avance a pas fixe, quel que soit le rythme des images
+          this.pAcc += step;
+          const h = TUNING.planche.step;
+          while (this.pAcc >= h) { this.plancheStep(h); this.pAcc -= h; }
+        }
         if (this.flailing) applyPose(d.joints, POSES.flail, Math.min(1, dt * 7));
         else applyPose(d.joints, POSES.dods, Math.min(1, dt * 9));
-        // le corps s'ouvre a l'horizontale, ventre vers l'eau : c'est la signature du dods
-        this.bodyRot += ((this.flailing ? 0.9 : 1.48) - this.bodyRot) * Math.min(1, dt * 3.2);
+        // le corps s'ouvre a l'horizontale, ventre vers l'eau : c'est la signature du dods,
+        // et l'inclinaison de la planche se lit directement sur lui
+        const pitch = this.flailing ? 0.9 : 1.48 + this.tilt;
+        this.bodyRot += (pitch - this.bodyRot) * Math.min(1, dt * (this.t < 0.3 ? 3.2 : 12));
         this.yaw += (-1.05 - this.yaw) * Math.min(1, dt * 3);
       } else {
         // La fermeture est un coup sec, pas une transition : bouclee en 0,05 s.
@@ -343,13 +411,14 @@ export class Jump {
     this.shake = dead ? 1.25 : 0.55 + this.grade.mult * 0.12;
     this.audio?.splash(dead);
 
-    const { base, style, score } = this.scoreFor(this.grade, this.styleTime);
+    const planche = this.tucked ? (this.plancheRes || this.planche()) : this.planche();
+    const { base, style, score } = this.scoreFor(this.grade, this.styleTime, planche);
     this.result = {
       dead, grade: this.grade, base, style, score,
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
       height: this.spot.height,
       // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
-      win: this.win, tucked: this.tucked, landing: this.landing
+      win: this.win, tucked: this.tucked, landing: this.landing, planche
     };
   }
 
@@ -414,6 +483,7 @@ export class Jump {
       h.zoneLo = 1 - w.perfectHi / span; h.zoneHi = 1 - w.perfectLo / span;
       h.hot = ttc <= w.goodHi;
       h.pot = this.potential();
+      h.tilt = this.tilt; h.wind = this.windAt(this.t); h.gust = this.gustNow() * (this.spot.wind || 0);
       return h;
     }
     h.phase = 'impact'; h.alt = 0;

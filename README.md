@@ -10,7 +10,7 @@ Jeu de **dødsing** (le death diving norvégien) qui se joue dans le navigateur,
 
 1. Choisir un spot (6 spots, de 10 à 34 m). Son décor s'installe derrière la fiche.
 2. Le plongeur court vers le bord. **Appuyer au dernier mètre** : c'est le décollage, multiplicateur de 0,5 à 1,25.
-3. **Garder appuyé** : il vole en **døds**, bras et jambes tendus. Chaque dixième de seconde tenu rapporte du style, et **la mise s'affiche en direct** sous l'anneau : ce que le lâcher rapporterait maintenant. Elle grimpe de palier en palier (CHICKEN, EARLY, GOOD, GREAT, PERFECT), vire à l'or, puis tombe à zéro quand l'eau est trop proche.
+3. **Garder appuyé** : il vole en **døds**, bras et jambes tendus. **Tenir la planche** : l'élan et le vent font basculer le corps, on le garde à plat en **glissant le doigt** (vers le haut pour relever la tête, vers le bas pour la baisser ; flèches ↑ ↓ au clavier). Un niveau à bulle au-dessus de l'anneau montre l'inclinaison. Planche parfaite x1,15, bancale jusqu'à x0,6. Frognerbadet est à l'abri, le Lysefjord souffle fort, et chaque saut d'un spot a ses rafales fixes : le saut 2 de Mostar souffle pareil pour tout le monde. Chaque dixième de seconde tenu rapporte du style, et **la mise s'affiche en direct** sous l'anneau : ce que le lâcher rapporterait maintenant. Elle grimpe de palier en palier (CHICKEN, EARLY, GOOD, GREAT, PERFECT), vire à l'or, puis tombe à zéro quand l'eau est trop proche.
 4. **Lâcher au dernier moment** : le corps se referme d'un coup. Trop tôt c'est un chicken, trop tard c'est un smack, et un smack termine le run.
 
 Le son monte avec le temps qui reste avant l'eau et un cœur accélère : on anticipe à l'oreille, parce que l'œil réagit trop tard pour viser la fenêtre dorée. La note se calcule à l'instant exact du doigt, pas à l'image suivante : le même geste donne la même note à 30, 60 ou 120 images par seconde.
@@ -23,7 +23,7 @@ Le bouton en bas à gauche coupe le son, et la coupure est gardée d'une partie 
 
 Après chaque saut, un tap n'importe où enchaîne le suivant.
 
-Score = (hauteur × 12 + style) × multiplicateur de timing × multiplicateur de décollage.
+Score = (hauteur × 12 + style) × multiplicateur de timing × multiplicateur de décollage × multiplicateur de planche.
 
 ## Versions
 
@@ -42,6 +42,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v1.8 | la fermeture devient un coup sec : 0,05 s au lieu de 0,15 s |
 | v2.0 | **un seul geste, appuyer, tenir, lâcher**, avec la mise en direct, le son de tension et le cœur ; note à l'instant du doigt et saut identique quelle que soit la fréquence d'écran ; gerbe refaite (gouttes, bruine, couronne à doigts), écume d'entrée dans la mer, nuages, clapot ; décor du spot derrière sa fiche ; résolution adaptative, zéro flou recalculé, Three.js minifié |
 | v2.1 | passe du gauntlet : la mise inclut le bonus de série, un doigt fantôme ne bloque plus rien, le bon décor derrière la fiche même en changeant vite de spot, gerbe d'un plat centrée sur le ventre, préchauffage des ombres, résolution adaptative relancée à chaque spot |
+| v3.0 | **la planche** : le vol devient actif, on redresse le corps contre l'élan et le vent en glissant le doigt ; vent propre à chaque spot, rafales fixes par saut, niveau à bulle, multiplicateur de planche dans la mise et sur la carte |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 
@@ -93,7 +94,7 @@ Source : critères de jugement de la [Døds Diving League](https://dodsdivinglea
 ./check.sh
 ```
 
-37 contrôles déterministes : présence des fichiers, syntaxe de chaque module, intégrité des 6 spots, bornes des fenêtres de tuck, câblage de `index.html`, invariants du geste et de la boucle chaude (v2.0), cadrage pour les agents de code, absence de tiret cadratin.
+39 contrôles déterministes : présence des fichiers, syntaxe de chaque module, intégrité des 6 spots, bornes des fenêtres de tuck, câblage de `index.html`, invariants du geste et de la boucle chaude (v2.0), cadrage pour les agents de code, absence de tiret cadratin.
 
 Pour le jeu lui-même, la page expose `window.__dods` :
 
@@ -137,7 +138,7 @@ Ce qui fait vraiment baisser la facture, dans l'ordre :
 3. `AGENTS.md` plutôt que le prompt. Les invariants sont dans le dépôt, rien à
    recoller à chaque fois, et ils profitent aussi aux autres agents qui lisent
    ce fichier.
-4. `./check.sh` avant de demander une relecture au modèle : 37 contrôles pour
+4. `./check.sh` avant de demander une relecture au modèle : 39 contrôles pour
    zéro token.
 
 Le reste du cadre ne change pas : brancher, pousser, la preview sort sur

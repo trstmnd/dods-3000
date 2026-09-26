@@ -35,6 +35,7 @@ est servie telle quelle et va chercher Three.js sur jsDelivr.
 |---|---|
 | `timing.mjs` | les quatre cas de fermeture donnent-ils le bon verdict et le bon score, et la mise affichée vaut-elle ce que le lâcher encaisse |
 | `geste.mjs` | le geste avec de vrais événements : clavier et répétition, souris, deux doigts, `pointercancel`, perte de focus en plein maintien, lâcher perdu, focus d'un bouton, carte de résultat, menu contextuel, précision de l'instant du doigt |
+| `planche.mjs` | la planche sans pilote et avec un pilote parfait sur 4 spots, puis à 30 et 144 Hz |
 | `perf.mjs [port]` | coût d'une image par phase et mémoire allouée par image ; servir une autre version sur un autre port pour comparer |
 | `serie.mjs` | le multiplicateur de série compte-t-il juste sur deux runs |
 | `leak.mjs` | le nombre de géométries GPU reste-t-il stable run après run, en changeant de spot |

@@ -72,6 +72,8 @@ t "pas de backdrop-filter (flou recalcule a chaque image)" "! grep -q 'backdrop-
 t "appui long sans defilement ni zoom" "grep -q 'canvas#scene{[^}]*touch-action:none' style.css"
 t "repetition clavier ignoree" "grep -q 'if (e.repeat) return;' src/main.js"
 t "three minifie et verifie" "grep -q 'three.module.min.js' index.html"
+t "planche a pas fixe" "grep -q 'TUNING.planche.step' src/game.js"
+t "rafales fixees par saut" "grep -q 'jump.reset(state.jumpIndex)' src/main.js"
 
 # 9. la version affichee existe et est unique
 t "version exposee" "grep -qE \"^export const VERSION = 'v[0-9]+\\.[0-9]+'\" src/main.js"

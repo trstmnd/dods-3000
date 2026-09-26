@@ -82,6 +82,10 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    (`setText`, `setStyle`, `setClass`, `setAttr`). Pas de `backdrop-filter`, pas
    de bruit calcule par pixel dans un shader : la texture `noiseData()` sert le
    ciel, le clapot et l'ecume.
+16. **La planche s'integre a pas fixe** (`TUNING.planche.step`, 1/240 s) dans
+   `plancheStep()` : sans pilote, le meme saut donne la meme planche a 30, 60 et
+   144 Hz. Les rafales sont fixees par `reset(n)` (spot + numero du saut) : ne pas
+   les tirer au hasard a chaque image, les scores ne seraient plus comparables.
 
 ## Ou regarder avant de commencer
 
@@ -93,10 +97,11 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
 ## Boucle de travail
 
 ```bash
-./check.sh                  # 37 controles deterministes, ni reseau ni navigateur
+./check.sh                  # 39 controles deterministes, ni reseau ni navigateur
 python3 -m http.server 8012 # puis http://localhost:8012/?cb=<n>
 ./tools/run.sh timing.mjs   # les quatre cas de fermeture et la mise, dans un vrai navigateur
 ./tools/run.sh geste.mjs    # clavier, souris, deux doigts, perte de focus, lacher perdu
+./tools/run.sh planche.mjs  # la planche avec et sans pilote, sur 4 spots et 3 frequences
 ```
 
 Le `?cb=<n>` n'est pas decoratif : le serveur local n'envoie pas de
@@ -110,6 +115,7 @@ __dods.paused = true;   // fige la boucle rAF
 __dods.render = false;  // tick() ne dessine plus (logique 50 fois plus rapide)
 __dods.autoJump = 0.7;  // appuie a 0,7 m du bord et garde appuye
 __dods.autoTuck = 0.15; // lache a 0,15 s de l'impact
+__dods.autoSteer = true; // un pilote parfait tient la planche
 __dods.tick(60);        // avance 60 frames de 1/60 s et rend l'etat
 ```
 

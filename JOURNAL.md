@@ -3,7 +3,7 @@
 Ce que `ROADMAP.md` ne dit pas : ce qui a été fait, pourquoi, ce qui est vérifié
 et ce qui ne l'est pas. À lire avant de reprendre.
 
-État au 26 septembre 2026 : **v1.8 en ligne** sur https://trstmnd.github.io/dods-3000/, **v2.1 prête** sur la branche `v2` (preview : https://trstmnd.github.io/dods-3000/preview/v2/).
+État au 26 septembre 2026 : **v1.8 en ligne** sur https://trstmnd.github.io/dods-3000/, **v3.0 prête** sur la branche `v3` (preview : https://trstmnd.github.io/dods-3000/preview/v3/).
 
 ---
 
@@ -20,6 +20,7 @@ et ce qui ne l'est pas. À lire avant de reprendre.
 | v1.8 | fermeture à 0,05 s au lieu de 0,15 s | sur une fermeture tardive, le corps entrait dans l'eau à moitié ouvert |
 | v2.0 | un seul geste (appuyer, tenir, lâcher), mise en direct, son de tension et cœur, note à l'instant du doigt, parabole exacte, gerbe refaite, écume dans la mer, nuages, clapot, décor derrière la fiche, fluidité | demande : « ultra fluide, beau, gameplay novateur ». Le vol était une attente passive entre deux taps |
 | v2.1 | 7 défauts du gauntlet corrigés (2 bloquants, 5 majeurs) | voir « Le gauntlet de la v2 » plus bas |
+| v3.0 | la planche : on redresse le corps en glissant le doigt, vent par spot, rafales fixes par saut | le gauntlet a noté que tenir restait passif : un minuteur, pas un geste |
 
 Avant tout ça : le cadrage OpenCode (`AGENTS.md`, `ROADMAP.md`, `opencode.json`)
 pour que le projet se continue avec un petit modèle.
@@ -106,6 +107,42 @@ voyaient pas :
 Leçon : **un test écrit par l'auteur vérifie ce que l'auteur a pensé**. Les trois
 bloquants et majeurs de gameplay sont sortis de scénarios que je n'avais pas écrits :
 série sur trois sauts, doigt fantôme, clics rapides.
+
+## La v3 : tenir devient un geste
+
+Le vérificateur de gameplay du round 1 l'a dit en une ligne : tenir est un minuteur
+passif. La v3 donne au doigt qui tient quelque chose à faire, sans ajouter de bouton.
+
+**La planche.** L'inclinaison du corps par rapport à l'horizontale idéale. Trois forces
+la font bouger : le couple de départ (un décollage parfait part presque droit, un
+décollage trop tôt pique du nez), les rafales du spot, et le doigt, qui commande une
+inclinaison que le corps rejoint avec un léger retard. Glisser vers le haut relève la
+tête. Le système est stable : on compense le vent, on ne jongle pas avec un pendule.
+
+**Le score.** Écart moyen tenu pendant le vol : 4° ou moins, PLANCHE PARFAITE x1,15 ;
+jusqu'à 12°, TENUE de x1,15 à x1 ; au-delà, BANCALE jusqu'à x0,6. Le multiplicateur
+entre dans la mise en direct, donc tenir la planche fait monter le chiffre sous l'anneau.
+
+**Mesuré sans pilote puis avec un pilote parfait** (`tools/planche.mjs`, PERFECT à
+0,15 s) :
+
+| Spot | Vent | Sans pilote | Pilote parfait |
+|---|---|---|---|
+| Frognerbadet | 0 | x1,13, 5° | x1,15, 2° |
+| Rick's Cafe | 0,3 | x1,01, 11° | x1,15, 4° |
+| Stari Most | 0,55 | x0,94, 18° | x1,12, 6° |
+| Lysefjord | 0,95 | x0,91, 20° (40° au pire) | x1,08, 8° |
+
+Frognerbadet reste le spot où l'on apprend le geste : sans vent, la planche se tient
+presque seule. Au Lysefjord, même un pilote sans retard n'atteint pas la planche
+parfaite : c'est le plafond de compétence.
+
+**Les records ne sont plus strictement comparables** avec la v2 : la planche module le
+score de x0,6 à x1,15. Décision : garder la sauvegarde. Un ancien record se bat plus
+facilement avec une bonne planche, ce qui ne lèse personne.
+
+**À plat en fréquence d'image** : intégrée à pas fixe (1/240 s), la planche sans pilote
+donne x0,94 à 30, 60 et 144 Hz sur Stari Most.
 
 ## Mes erreurs, pour ne pas les refaire
 

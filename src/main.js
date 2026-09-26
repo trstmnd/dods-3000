@@ -6,7 +6,7 @@ import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v2.1';
+export const VERSION = 'v3.0';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
@@ -17,7 +17,7 @@ const STORE = 'dods3000.v1';
 // chaque frame sur mobile.
 const E = {};
 for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
-  'tuckring', 'tr-grade', 'tr-streak', 'pot', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
+  'tuckring', 'tr-grade', 'tr-streak', 'pot', 'level', 'level-bubble', 'level-label', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
   'pause-resume', 'loading', 'sound', 'version'])
   E[id] = document.getElementById(id);
 const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
@@ -111,7 +111,7 @@ function show(...names) {
   if (!names.includes('run')) {
     audio.setTension(0); audio.setWind(0);
     clearHeld();
-    if (jump && jump.state !== 'walk') jump.reset();
+    if (jump && jump.state !== 'walk') jump.reset(state.jumpIndex);
     setStyle(E.speed, 'opacity', '0');
   }
 }
@@ -164,6 +164,9 @@ function openBrief(spot) {
   $('#brief-diff').textContent = DIFF_LABEL[spot.diff];
   $('#brief-best').textContent = save.best[spot.id] || 0;
   $('#brief-note').textContent = spot.note;
+  // Le vent dit ce que la planche va demander : rien a Frognerbadet, beaucoup au Lysefjord.
+  const w = spot.wind || 0;
+  $('#brief-wind').textContent = w === 0 ? 'à l\'abri du vent' : w < 0.45 ? 'vent léger : glisse pour rester à plat' : w < 0.7 ? 'vent : glisse pour rester à plat' : 'vent fort : glisse pour rester à plat';
   show('brief');
   // Le decor du spot choisi s'installe derriere la fiche, pendant qu'on la lit : la
   // construction et la compilation des shaders sont payees ici, pas au moment de sauter.
@@ -231,9 +234,9 @@ function nextJump() {
   // commence sans geste en cours, et ce doigt-la ne compte plus.
   owner = null;
   state.jumpIndex++;
-  jump.reset();
+  jump.reset(state.jumpIndex);
   jump.onDone = onJumpDone;
-  lastLevel = -1;
+  lastLevel = -1; gustShown = false;
   setText(E['hud-jump'], `${state.jumpIndex}/${JUMPS_PER_RUN}`);
   setText(E['hud-score'], String(state.runScore));
   showStreak();
@@ -318,6 +321,7 @@ function onJumpDone(res) {
     <li><span>Style, ${res.air.toFixed(2)} s en døds</span><b>+${res.style}</b></li>
     <li><span>Timing ${res.grade.label}</span><b>x${res.grade.mult}</b></li>
     <li><span>${res.takeoff.label}</span><b>x${res.takeoff.mult}</b></li>
+    ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${res.planche.label}, ${Math.round(res.planche.mean * 57.3)}° d'écart</span><b>x${res.planche.mult}</b></li>` : ''}
     ${bonus ? `<li><span>${bonus.label}</span><b>x${bonus.mult}</b></li>` : ''}
     <li class="total"><span>Saut ${state.jumpIndex}</span><b>${gained}</b></li>`;
   const finished = res.dead || state.jumpIndex >= JUMPS_PER_RUN;
@@ -368,7 +372,7 @@ function callout(text, color) {
 }
 
 const GRADE_LEVEL = { chicken: 0, early: 1, good: 2, great: 3, perfect: 4, smack: 5 };
-let lastLevel = -1, beatClock = 0;
+let lastLevel = -1, beatClock = 0, gustShown = false, lastInput = 'pointer';
 
 function updateHud(dt) {
   const h = jump.hud();
@@ -404,8 +408,20 @@ function updateHud(dt) {
       if (level !== lastLevel) { if (lastLevel >= 0 && level < 5) audio.tick(level); lastLevel = level; }
       // Le texte ne donne jamais le top : l'oeil reagit trop tard, c'est l'eau qui monte,
       // l'ombre qui se resserre et le son qui grimpe qui doivent faire lacher.
+      // La planche : un niveau a bulle au-dessus de l'anneau. Le texte dit dans quel sens
+      // glisser seulement quand elle part vraiment, sinon il redit la consigne du lacher.
+      const tilt = h.tilt || 0;
+      const planche = h.pot.planche;
+      setClass(E.level, 'on', !h.flailing);
+      setStyle(E['level-bubble'], 'transform', `translateX(${(Math.max(-1, Math.min(1, tilt / 0.7)) * 70).toFixed(1)}px)`);
+      setAttr(E.level, 'data-planche', planche.key);
+      setText(E['level-label'], planche.key === 'aucune' ? 'PLANCHE' : `${planche.label.replace('PLANCHE ', '')} x${planche.mult}`);
+      const keys = lastInput === 'key';
+      const steerHint = h.held && !h.flailing && Math.abs(tilt) > 0.24
+        ? (tilt > 0 ? (keys ? '↑ POUR REDRESSER' : 'GLISSE ↑ POUR REDRESSER') : (keys ? '↓ POUR REDRESSER' : 'GLISSE ↓ POUR REDRESSER')) : null;
       setPrompt(h.flailing && !h.held ? 'APPUIE, PUIS LÂCHE AVANT L\'EAU'
-        : !h.held ? 'APPUIE ET TIENS' : 'TIENS… LÂCHE JUSTE AVANT L\'EAU', h.hot && h.held);
+        : !h.held ? 'APPUIE ET TIENS' : steerHint || 'TIENS… LÂCHE JUSTE AVANT L\'EAU', h.hot && h.held && !steerHint);
+      if (h.gust > 0.35 && !gustShown) { gustShown = true; toast('RAFALE'); }
       // Le son monte avec le temps qui reste, le coeur accelere : on anticipe a l'oreille.
       const v = Math.max(0, Math.min(1, 1 - h.ttc / 1.9));
       audio.setTension(h.held ? v : 0);
@@ -414,13 +430,15 @@ function updateHud(dt) {
     } else {
       setPrompt('', false);
       audio.setTension(0);
+      setClass(E.level, 'on', false);
     }
-    audio.setWind(0.15 + sp * 0.85);
+    audio.setWind(0.15 + sp * 0.85 + Math.abs(h.wind || 0) * 0.35);
     setStyle(E.vignette, 'opacity', (0.35 + sp * 0.85).toFixed(2));
     setStyle(E.speed, 'opacity', (h.tucked ? 0 : sp * sp * 0.9 * motionScale()).toFixed(2));
     return;
   }
   setClass(E.tuckring, 'on', false);
+  setClass(E.level, 'on', false);
   setPrompt('', false);
   audio.setWind(0);
   audio.setTension(0);
@@ -499,8 +517,12 @@ const held = new Set();
 // pointerup perdu, un doigt pose au bord de l'ecran) ne bloque donc plus rien : il ne
 // peut ni empecher un decollage ni retenir un lacher.
 let owner = null;
+// La planche se tient en glissant le doigt qui tient le geste, vers le haut pour relever
+// la tete, vers le bas pour la baisser. Au clavier : fleches haut et bas avec l'Espace.
+let anchorY = 0, steerPtr = 0, keyUp = 0, keyDown = 0;
+const STEER_SPAN = () => Math.max(60, window.innerHeight * 0.12);
 let frameStamp = performance.now(), frameRate = 1;
-function clearHeld() { held.clear(); owner = null; }
+function clearHeld() { held.clear(); owner = null; steerPtr = 0; keyUp = 0; keyDown = 0; }
 
 // Temps ecoule entre la derniere image simulee et l'evenement, en temps de jeu.
 function lateOf(e) {
@@ -520,6 +542,8 @@ function inputDown(src, e) {
   // Un second doigt pendant le geste ne fait rien. Hors geste, tout nouvel appui compte.
   if (owner !== null) return;
   owner = src;
+  anchorY = e && typeof e.clientY === 'number' ? e.clientY : 0;
+  steerPtr = 0;
   onPress(e);
 }
 function inputUp(src, e) {
@@ -574,11 +598,20 @@ window.addEventListener('keydown', e => {
     if (e.target && e.target.closest && e.target.closest('button')) return;
     e.preventDefault();
     if (e.repeat) return;
+    lastInput = 'key';
     inputDown('k' + e.code, e);
+  }
+  if (on('run') && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+    e.preventDefault();
+    if (e.code === 'ArrowUp') keyUp = 1; else keyDown = 1;
   }
   if (e.code === 'Escape' && on('run')) { clearHeld(); setPause(false); show('spots'); buildSpotList(); }
 });
-window.addEventListener('keyup', e => { if (isAction(e)) inputUp('k' + e.code, e); });
+window.addEventListener('keyup', e => {
+  if (isAction(e)) inputUp('k' + e.code, e);
+  if (e.code === 'ArrowUp') keyUp = 0;
+  if (e.code === 'ArrowDown') keyDown = 0;
+});
 
 // Les doigts : partout sauf sur les boutons et les ecrans de menu. Le canvas, le HUD,
 // la carte de resultat et la pause sont des surfaces de jeu.
@@ -587,9 +620,14 @@ window.addEventListener('pointerdown', e => {
   if (t.closest && (t.closest('button, a, input') || t.closest('#s-title, #s-spots, #s-brief, #s-end .card'))) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   e.preventDefault();
+  lastInput = 'pointer';
   inputDown('p' + e.pointerId, e);
 }, { passive: false });
 window.addEventListener('pointerup', e => inputUp('p' + e.pointerId, e));
+window.addEventListener('pointermove', e => {
+  if (owner !== 'p' + e.pointerId) return;
+  steerPtr = Math.max(-1, Math.min(1, (anchorY - e.clientY) / STEER_SPAN()));
+}, { passive: true });
 window.addEventListener('pointercancel', e => inputUp('p' + e.pointerId, e));
 // Un appui long ne doit ouvrir ni menu contextuel ni loupe : c'est le geste du jeu.
 window.addEventListener('contextmenu', e => { if (on('run')) e.preventDefault(); });
@@ -612,7 +650,7 @@ window.__dods = {
   press: () => onPress(null), down: () => onPress(null), up: () => onRelease(null),
   get jump() { return jump; }, get world() { return world; }, camera, renderer,
   get state() { return state; }, show, startRun, openBrief, quality, spots: SPOTS,
-  autoJump: null, autoTuck: null, paused: false, slowmo: true, render: true,
+  autoJump: null, autoTuck: null, autoSteer: false, paused: false, slowmo: true, render: true,
   // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
   draw: () => { if (world) renderer.render(world.scene, camera); }
 };
@@ -671,6 +709,10 @@ function frame(dt) {
     const k = slowFactor();
     frameRate = k;
     dt *= k;
+    const A0 = window.__dods;
+    // autoSteer : un pilote parfait pour les tests, qui redresse la planche sans retard
+    jump.steer = A0.autoSteer ? Math.max(-1, Math.min(1, jump.tilt * 2.4 + jump.tiltV * 0.5))
+      : Math.max(-1, Math.min(1, steerPtr + keyUp - keyDown));
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }

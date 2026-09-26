@@ -22,7 +22,7 @@
     <h1 class="logo">DODS<span>3000</span></h1>
     <p class="tag">Championnat de dødsing</p>
     <button class="btn big" data-go="spots">JOUER</button>
-    <p class="hint">Un seul geste : appuie, tiens, lâche</p>
+    <p class="hint">Un seul doigt : appuie, tiens la planche, lâche</p>
     <p class="version" id="version"></p>
   </div>
 </section>
@@ -52,9 +52,10 @@
     <p id="brief-note" class="note"></p>
     <ol class="gesture" aria-label="Le geste">
       <li><i class="g1"></i><b>APPUIE</b><small>au bord</small></li>
-      <li><i class="g2"></i><b>TIENS</b><small>tu voles en døds</small></li>
+      <li><i class="g2"></i><b>TIENS</b><small>à plat, en døds</small></li>
       <li><i class="g3"></i><b>LÂCHE</b><small>juste avant l'eau</small></li>
     </ol>
+    <p class="wind-line" id="brief-wind"></p>
     <div class="row">
       <button class="btn ghost" data-go="spots">Retour</button>
       <button class="btn big" data-go="run">3 SAUTS, GO</button>
@@ -71,6 +72,8 @@
   </div>
 
   <div id="runbar"><div id="runbar-fill"></div><div id="runbar-zone"></div></div>
+
+  <div id="level" aria-hidden="true"><span class="lv-zone"></span><i id="level-bubble"></i><small id="level-label">PLANCHE</small></div>
 
   <div id="tuckring">
     <svg viewBox="0 0 120 120">

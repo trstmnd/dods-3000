@@ -1,6 +1,8 @@
 // Les spots. Chaque entree pilote a la fois la fiche du menu et la construction 3D.
 // height = hauteur de chute en metres, elle pilote la physique ET la difficulte de la fenetre de tuck.
 // platform : 'board' (plongeoir), 'bridge' (pont), 'rock' (rocher), 'terrace' (terrasse beton)
+// wind : force des rafales de 0 a 1. Elles font basculer la planche, le joueur la redresse
+// en glissant le doigt. Frognerbadet est a l'abri : on y apprend le geste sans vent.
 
 export const SPOTS = [
   {
@@ -10,6 +12,7 @@ export const SPOTS = [
     height: 10,
     diff: 1,
     platform: 'board',
+    wind: 0,
     note: "La piscine où le dødsing est né. Dix mètres, de l'eau chlorée et trois cents personnes qui hurlent.",
     palette: {
       sky: ['#9fd8ff', '#dff2ff'], sun: '#fff4d6', sunPos: [-165, 82, 145],
@@ -24,6 +27,7 @@ export const SPOTS = [
     height: 14,
     diff: 2,
     platform: 'terrace',
+    wind: 0.3,
     note: "Falaise de calcaire, coucher de soleil et un barman qui compte les points. L'eau est chaude, la roche non.",
     palette: {
       sky: ['#ff9b54', '#ffd89b'], sun: '#fff0b8', sunPos: [-120, 44, 175],
@@ -38,6 +42,7 @@ export const SPOTS = [
     height: 18,
     diff: 2,
     platform: 'rock',
+    wind: 0.4,
     note: "Dix-huit mètres au-dessus d'un bleu irréel. Le fond se voit, ce qui n'aide pas à rester calme.",
     palette: {
       sky: ['#5ec8ff', '#eafaff'], sun: '#ffffff', sunPos: [-175, 95, 130],
@@ -52,6 +57,7 @@ export const SPOTS = [
     height: 24,
     diff: 3,
     platform: 'bridge',
+    wind: 0.55,
     note: "Le pont ottoman. Vingt-quatre mètres, la Neretva à treize degrés, et une tradition qui ne pardonne pas l'hésitation.",
     palette: {
       sky: ['#6fb7e8', '#e6f3ff'], sun: '#fff6df', sunPos: [-150, 76, 150],
@@ -66,6 +72,7 @@ export const SPOTS = [
     height: 28,
     diff: 4,
     platform: 'rock',
+    wind: 0.75,
     note: "Vingt-huit mètres dans une faille de sept mètres de large. Il faut la vague, et la vague ne t'attend pas.",
     palette: {
       sky: ['#ff6b5e', '#ffc46b'], sun: '#ffe9a8', sunPos: [-130, 36, 180],
@@ -80,6 +87,7 @@ export const SPOTS = [
     height: 34,
     diff: 5,
     platform: 'rock',
+    wind: 0.95,
     note: "Trente-quatre mètres de granite au-dessus d'un fjord noir. Personne ne regarde. C'est ce qui fait peur.",
     palette: {
       sky: ['#48617f', '#b9cfe0'], sun: '#e8f0ff', sunPos: [-180, 58, 120],

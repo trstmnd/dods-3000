@@ -88,7 +88,15 @@ Ordre choisi par rapport valeur sur effort, pas par ambition.
 - [x] **Fluidite** : monde garde par spot et compile a l'avance, resolution
   adaptative, boucle sans allocation, aucun flou recalcule.
 
-## Apres la v2.0, vers le freestyle
+## v3.0, la planche (livre)
+
+- [x] **Le vol devient actif.** L'elan et le vent font basculer le corps, le doigt qui
+  tient le geste le redresse en glissant. Un niveau a bulle, un multiplicateur de
+  planche dans la mise et sur la carte.
+- [x] **Du vent par spot**, et des rafales fixes par saut pour que les scores restent
+  comparables entre joueurs.
+
+## Apres la v3.0, vers le freestyle
 
 Le sujet du jeu est le geste, pas le catalogue de spots.
 
@@ -102,6 +110,11 @@ Le sujet du jeu est le geste, pas le catalogue de spots.
 - [ ] **Les trois notes du jury.** Anlop, vol, entree, affichees separement au
   bilan, sans changer d'echelle ni casser les records.
 - [ ] **Partage du score de run** via `navigator.clipboard`, avec repli.
+- [ ] **Le fantome de son meilleur saut.** Enregistrer la trajectoire, l'inclinaison
+  et l'instant du lacher du record de chaque spot, et le rejouer en transparence :
+  on voit ou on a lache la derniere fois.
+- [ ] **Le defi du jour.** Un spot et des rafales tires de la date : meme saut pour
+  tout le monde, score partageable.
 
 ## Reserve, a cadrer avant d'attaquer
 
