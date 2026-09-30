@@ -437,18 +437,18 @@ export class Jump {
       fov = 60;
     } else if (this.state === 'fly') {
       const v = Math.min(1, Math.abs(this.vel.y) / 24);
-      // La derniere seconde est le sujet du jeu : la camera se rapproche et resserre le
-      // champ pour qu'on voie la fermeture et la forme d'entree.
-      const close = 1 - THREE.MathUtils.clamp(this.ttc / 0.9, 0, 1);
+      // La derniere seconde est le sujet du jeu : la camera plonge avec lui, se
+      // rapproche et resserre le champ pour qu'on voie la fermeture et la forme d'entree.
+      const close = 1 - THREE.MathUtils.clamp(this.ttc / 1.1, 0, 1);
       // Au decollage le corps est encore debout : on vise sa poitrine, pas ses pieds,
       // sinon la tete sort du cadre pendant le premier tiers de seconde.
       const early = 1 - THREE.MathUtils.clamp(this.t / 0.5, 0, 1);
-      tx = -6.4 - v * 1.8 + close * 3.6 - early * 0.8;
-      ty = p.y + 1.35 - v * 0.9 + close * 0.35 + early * 0.9;
-      tz = p.z + 2.5 + v * 1.3 - close * 1.1;
+      tx = -6.4 - v * 1.8 + close * 4.4 - early * 0.8;
+      ty = p.y + 1.35 - v * 0.9 - close * 0.35 + early * 0.9;
+      tz = p.z + 2.5 + v * 1.3 - close * 1.4;
       lx = 0; ly = p.y - 0.75 - v * 1.5 + close * 0.95 + early * 1.9; lz = p.z + 0.3;
       // Le lacher donne un coup de zoom bref : le geste se sent dans l'image.
-      fov = 54 + v * 24 - close * 26 - this.fovKick * 7;
+      fov = 54 + v * 24 - close * 30 - this.fovKick * 7;
       // une legere bascule avec la vitesse, rendue a zero au moment de lire l'entree
       roll = -0.05 * v * (1 - close);
     } else {

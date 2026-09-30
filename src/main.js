@@ -499,12 +499,14 @@ function updateHud(dt) {
   setStyle(E.speed, 'opacity', '0');
 }
 
-/* ---------- ralenti sur un perfect ---------- */
-// Le geste parfait merite d'etre vu. Le ralenti commence apres la fermeture, donc apres
-// que le style et la note sont figes : le score est identique avec ou sans.
-const SLOW_TTC = 0.35, SLOW_RATE = 0.35;
+/* ---------- ralenti des derniers metres ---------- */
+// La fermeture merite d'etre vue. Le ralenti commence apres la fermeture, donc apres
+// que le style et la note sont figes : le score est identique avec ou sans. Toute
+// fermeture tenue y a droit, pas seulement le perfect : une crevette serree a temps
+// est aussi un moment a montrer. Le smack n'en profite pas, il reste brut.
+const SLOW_TTC = 0.42, SLOW_RATE = 0.25;
 function slowFactor() {
-  if (!window.__dods.slowmo || !jump || !jump.grade || jump.grade.key !== 'perfect') return 1;
+  if (!window.__dods.slowmo || !jump || !jump.grade || jump.grade.key === 'smack') return 1;
   if (jump.state === 'fly') return jump.tucked && jump.ttc <= SLOW_TTC ? SLOW_RATE : 1;
   if (jump.state === 'impact') return jump.impactT < SLOW_TTC ? SLOW_RATE : 1;
   return 1;
