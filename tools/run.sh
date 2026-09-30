@@ -19,11 +19,14 @@ mkdir -p "$SITE/src" && cp src/*.js "$SITE/src/"
 # octet pour octet, sinon le navigateur refuse le module.
 if ls tools/vendor/three.module*.js >/dev/null 2>&1; then
   mkdir -p "$SITE/vendor" && cp tools/vendor/three.module*.js "$SITE/vendor/"
+  # les addons (Water, post-traitement) : miroir local de examples/jsm, sinon le CDN
+  if [ -d tools/vendor/jsm ]; then cp -R tools/vendor/jsm "$SITE/vendor/"; fi
   python3 -c '
 import re, sys
 p = sys.argv[1]
 s = open(p).read()
 s = re.sub(r"https://[^\"]*/(three[^\"/]*\.js)", r"./vendor/\1", s)
+s = re.sub(r"https://cdn\.jsdelivr\.net/npm/three@[0-9.]+/examples/jsm/", "./vendor/jsm/", s)
 open(p, "w").write(s)
 ' "$SITE/index.html"
 fi

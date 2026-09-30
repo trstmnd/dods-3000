@@ -24,6 +24,7 @@ une fois pour toutes :
 ```bash
 cd tools && npm i three@0.170.0
 mkdir -p vendor && cp node_modules/three/build/three.module.min.js vendor/
+cp -R node_modules/three/examples/jsm vendor/   # addons (Water, post-traitement)
 ```
 
 Le fichier copié doit porter le nom exact que l'importmap réclame (`three.module.min.js` depuis la v2.0) : le hash d'integrity doit correspondre octet pour octet. `run.sh` réécrit alors l'importmap vers cette copie. Sans ce fichier, la page

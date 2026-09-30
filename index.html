@@ -155,10 +155,15 @@
 <!-- integrity : le navigateur refuse three si le CDN sert autre chose que ces octets exacts.
      Hash calcule sur le tarball npm officiel de three 0.170.0. jsdelivr sert le fichier npm tel
      quel, ce qui rend le hash verifiable ; cdnjs sert son propre build minifie, qui ne l'est pas.
-     Chrome 127, Firefox 138 et Safari 18.4 appliquent la cle, les versions d'avant l'ignorent. -->
+     Chrome 127, Firefox 138 et Safari 18.4 appliquent la cle, les versions d'avant l'ignorent.
+     Les addons (Water, post-traitement) viennent du meme depot 0.170.0, epingle par la version ;
+     le harnais les sert depuis tools/vendor/jsm (voir tools/run.sh). -->
 <script type="importmap">
 {
-  "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js" },
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  },
   "integrity": {
     "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js": "sha384-IDC7sAMAIMB/TZ6dgKKPPAKZ2bXXXP8+FBMBC8cU319eBhKITx+PaalhfDkDNH28"
   }
