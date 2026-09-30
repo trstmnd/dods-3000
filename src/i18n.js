@@ -149,6 +149,12 @@ export const DICT = {
     'result.next.end': 'BILAN',
     'result.tap.touch': "ou tape n'importe où",
     'result.tap.desk': 'ou appuie sur Espace',
+    'result.tap.pad': 'ou appuie sur A',
+    'input.space': 'ESPACE',
+    'input.click': 'CLIC',
+    'hud.ifRelease': 'SI TU LÂCHES',
+    'hud.takeoff': 'APPEL',
+    'spots.hint.desk': 'Flèches ou croix pour choisir · Espace ou A pour ouvrir · Échap ou B pour revenir',
 
     // fin du run
     'end.over': 'RUN TERMINÉ',
@@ -271,6 +277,12 @@ export const DICT = {
     'result.next.end': 'RESULTS',
     'result.tap.touch': 'or tap anywhere',
     'result.tap.desk': 'or press Space',
+    'result.tap.pad': 'or press A',
+    'input.space': 'SPACE',
+    'input.click': 'CLICK',
+    'hud.ifRelease': 'IF YOU LET GO',
+    'hud.takeoff': 'TAKEOFF',
+    'spots.hint.desk': 'Arrows or D-pad to choose · Space or A to open · Esc or B to go back',
 
     // end of run
     'end.over': 'RUN OVER',

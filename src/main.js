@@ -114,7 +114,10 @@ const screens = ['title', 'spots', 'brief', 'run', 'jump', 'end'];
 const SCREEN = Object.fromEntries(screens.map(s => [s, $('#s-' + s)]));
 const on = s => SCREEN[s].classList.contains('on');
 let shownAt = 0;
+const wideTitle = () => window.innerWidth >= 900 && window.innerWidth / window.innerHeight >= 1.25;
 function show(...names) {
+  // le decalage de l'ecran titre ne suit jamais la camera ailleurs (course, captures)
+  if (!names.includes('title') && camera.view && camera.view.enabled) camera.clearViewOffset();
   for (const s of screens) SCREEN[s].classList.toggle('on', names.includes(s));
   // Un bouton qui disparait garde le focus : l'Espace suivant lui revenait, pas au jeu.
   const a = document.activeElement;
@@ -263,13 +266,15 @@ function nextJump() {
   // la zone de bon decollage : les 2,6 derniers metres des 9,5 de la piste
   setStyle(E['runbar-zone'], 'left', ((1 - 2.6 / 9.5) * 100).toFixed(1) + '%');
   setStyle(E['runbar-zone'], 'width', ((2.6 / 9.5) * 100).toFixed(1) + '%');
-  setPrompt(save.jumps ? t('prompt.edge') : t('prompt.edge.first'), true);
+  setPrompt(save.jumps ? t('prompt.edge') : t('prompt.edge.first'), true, true);
 }
 
 /* ---------- lecture du timing ---------- */
 // GOOD ou EARLY ne dit pas si on a manque de 30 ms ou de 300. L'ecart au parfait et
 // la jauge situent la fermeture dans la fenetre : c'est ce qui rend le geste apprenable.
 const sec = v => LANG === 'fr' ? v.toFixed(2).replace('.', ',') : v.toFixed(2);
+// Un multiplicateur a la francaise : x1,15 et pas x1.15.
+const num = v => LANG === 'fr' ? String(v).replace('.', ',') : String(v);
 
 function timingText(res) {
   const w = res.win;
@@ -339,7 +344,7 @@ function onJumpDone(res) {
   $('#jr-grade').style.color = res.grade.color;
   $('#jr-sub').textContent = res.dead
     ? t('result.flat')
-    : t('result.air', { label: res.takeoff.label, air: res.air.toFixed(2) });
+    : t('result.air', { label: res.takeoff.label, air: sec(res.air) });
   $('#jr-timing').textContent = timingText(res);
   $('#jr-timing').style.color = res.grade.color;
   // nommer la forme d'entree : c'est le vocabulaire du dodsing, et ca s'apprend en jouant
@@ -347,15 +352,16 @@ function onJumpDone(res) {
   drawGauge(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
     <li><span>${t('line.base', { h: res.height })}</span><b>${res.base}</b></li>
-    <li><span>${t('line.style', { air: res.air.toFixed(2) })}</span><b>+${res.style}</b></li>
-    <li><span>${t('line.timing', { grade: res.grade.label })}</span><b>x${res.grade.mult}</b></li>
-    <li><span>${res.takeoff.label}</span><b>x${res.takeoff.mult}</b></li>
-    ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${t('line.plank', { label: res.planche.label, deg: Math.round(res.planche.mean * 57.3) })}</span><b>x${res.planche.mult}</b></li>` : ''}
-    ${bonus ? `<li><span>${bonus.label}</span><b>x${bonus.mult}</b></li>` : ''}
+    <li><span>${t('line.style', { air: sec(res.air) })}</span><b>+${res.style}</b></li>
+    <li><span>${t('line.timing', { grade: res.grade.label })}</span><b>x${num(res.grade.mult)}</b></li>
+    <li><span>${res.takeoff.label}</span><b>x${num(res.takeoff.mult)}</b></li>
+    ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${t('line.plank', { label: res.planche.label, deg: Math.round(res.planche.mean * 57.3) })}</span><b>x${num(res.planche.mult)}</b></li>` : ''}
+    ${bonus ? `<li><span>${bonus.label}</span><b>x${num(bonus.mult)}</b></li>` : ''}
     <li class="total"><span>${t('line.jump', { n: state.jumpIndex })}</span><b>${gained}</b></li>`;
   const finished = res.dead || state.jumpIndex >= JUMPS_PER_RUN;
   $('#jr-next').textContent = finished ? t('result.next.end') : t('result.next.jump');
   $('#jr-next').onclick = () => { audio.ui(); advance(); };
+  $('#s-jump .tap-hint').textContent = lastInput === 'pad' ? t('result.tap.pad') : TOUCH && lastInput === 'pointer' ? t('result.tap.touch') : t('result.tap.desk');
   persist();
   show('run', 'jump');
 }
@@ -384,9 +390,16 @@ function endRun(dead) {
 
 /* ---------- HUD ---------- */
 const RING_C = 2 * Math.PI * 52;
-function setPrompt(text, blink) {
+// La touche du geste, nommee dans la consigne : Espace, clic ou A selon le dernier
+// peripherique utilise. Rien sur un telephone, ou le doigt suffit.
+function inputKey() {
+  if (TOUCH && lastInput === 'pointer') return '';
+  return lastInput === 'pad' ? 'A' : lastInput === 'pointer' ? t('input.click') : t('input.space');
+}
+function setPrompt(text, blink, key) {
   setText(E.prompt, text);
   setClass(E.prompt, 'blink', !!blink);
+  setAttr(E.prompt, 'data-key', key && text ? inputKey() : '');
 }
 function toast(text) {
   const el = E.toast;
@@ -450,7 +463,7 @@ function updateHud(dt) {
       // on la remonte en remontant le doigt.
       setStyle(E['level-bubble'], 'transform', `translateY(${(Math.max(-1, Math.min(1, tilt / 0.7)) * 62).toFixed(1)}px)`);
       setAttr(E.level, 'data-planche', planche.key);
-      setText(E['level-label'], planche.key === 'aucune' ? t('level.plank') : `${planche.short} x${planche.mult}`);
+      setText(E['level-label'], planche.key === 'aucune' ? t('level.plank') : `${planche.short} x${num(planche.mult)}`);
       const ST = STEER[!TOUCH || lastInput === 'key' ? 1 : 0];
       // Sur un spot venteux, les premiers sauts disent le geste des le debut du vol ; ensuite
       // le texte ne sort que quand la planche part vraiment, avec le sens a donner.
@@ -460,7 +473,7 @@ function updateHud(dt) {
         ? (tilt > 0 ? ST.up : ST.down)
         : learning ? ST.learn : null;
       setPrompt(h.flailing && !h.held ? t('prompt.flail')
-        : !h.held ? t('prompt.press') : steerHint || t('prompt.hold'), h.hot && h.held && !steerHint);
+        : !h.held ? t('prompt.press') : steerHint || t('prompt.hold'), h.hot && h.held && !steerHint, !steerHint);
       if (h.gust > 0.35 && !gustShown) { gustShown = true; toast(t('toast.gust')); }
       // Le son monte avec le temps qui reste, le coeur accelere : on anticipe a l'oreille.
       const v = Math.max(0, Math.min(1, 1 - h.ttc / 1.9));
@@ -789,7 +802,7 @@ function resize() {
   camera.updateProjectionMatrix();
   // L'interface est dessinee pour un telephone (420 x 820). Sur un ecran de PC, de Steam
   // Deck ou de tele, tout est agrandi d'un bloc : sans ca le HUD fait 11 px sur un 1080p.
-  const ui = Math.max(1, Math.min(2.4, Math.min(w / 420, h / 640)));
+  const ui = Math.max(1, Math.min(2.6, Math.min(w / 400, h / 560)));
   document.documentElement.style.setProperty('--ui', ui.toFixed(3));
 }
 // redimensionner vide le canvas : en pause, il faut redessiner l'image figee
@@ -825,6 +838,12 @@ function placeMenuCamera(dt) {
   camera.position.lerp(menuCam.tgt, k);
   menuCam.look.lerp(menuCam.lookTgt, k);
   camera.lookAt(menuCam.look);
+  // Ecran titre sur un ecran large : l'ile passe dans les deux tiers droits, le logo tient
+  // la gauche (style.css, meme seuil). Centree, elle disparaissait sous le logo en 1080p.
+  if (on('title') && wideTitle()) {
+    const W = window.innerWidth, H = window.innerHeight;
+    if (!camera.view || camera.view.offsetX !== -W * 0.2 || camera.view.fullWidth !== W) camera.setViewOffset(W, H, -W * 0.2, 0, W, H);
+  } else if (camera.view && camera.view.enabled) camera.clearViewOffset();
   let fov = 52;
   if (camera.aspect < 1) fov *= 1 + (1 - camera.aspect) * 0.6;
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }

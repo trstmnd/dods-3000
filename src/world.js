@@ -371,9 +371,11 @@ function decor(spot, group, rnd) {
   for (let i = 0; i < 7; i++) {
     const far = 220 + rnd() * 320;
     const ang = (-0.15 + rnd() * 1.5) * Math.PI;
-    const h = 14 + rnd() * 46;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(28 + rnd() * 44, h, 6 + ((rnd() * 3) | 0)),
-      new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.rock2).lerp(new THREE.Color(pal.fog), 0.72), flatShading: true, roughness: 1 }));
+    // Des ilots bas et larges, teintes de roche : plus hauts et delaves par la brume, ils se
+    // lisaient comme des pyramides blanches posees sur la mer (relecture Steam du 30/09).
+    const h = 9 + rnd() * 24;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(34 + rnd() * 48, h, 9 + ((rnd() * 4) | 0)),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(pal.rock2).lerp(new THREE.Color(pal.fog), 0.5), flatShading: true, roughness: 1 }));
     m.position.set(Math.cos(ang) * far, h / 2 - 2, Math.sin(ang) * far + 40);
     m.rotation.y = rnd() * 6;
     group.add(m);

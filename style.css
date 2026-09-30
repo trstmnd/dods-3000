@@ -71,7 +71,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .logo span{display:block;font-size:.42em;letter-spacing:.42em;color:var(--accent);background:none;-webkit-text-fill-color:var(--accent);margin-top:.15em}
 .tag{margin:14px 0 30px;opacity:.75;letter-spacing:.24em;text-transform:uppercase;font-size:clamp(10px,2.6vw,13px)}
 .hint{margin-top:18px;opacity:.5;font-size:12px;letter-spacing:.12em}
-.version{margin:6px 0 0;opacity:.32;font-size:10px;letter-spacing:.28em;text-transform:uppercase}
+.version{margin:6px 0 0;opacity:.32;font-size:12px;letter-spacing:.28em;text-transform:uppercase}
 
 /* BOUTONS */
 .btn{font:inherit;font-weight:800;letter-spacing:.1em;cursor:pointer;border:0;border-radius:999px;
@@ -85,7 +85,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 /* SPOTS */
 .bar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .bar h2{flex:1;margin:0;font-size:clamp(14px,3.6vw,18px);letter-spacing:.2em}
-.total{font-size:11px;letter-spacing:.16em;opacity:.8}
+.total{font-size:12px;letter-spacing:.16em;opacity:.8}
 .total b{display:block;font-size:19px;color:var(--accent)}
 #spot-list{flex:1;overflow-y:auto;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
   align-content:start;padding-bottom:20px;-webkit-overflow-scrolling:touch}
@@ -99,7 +99,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .spot .sky{position:absolute;inset:0;z-index:-1}
 .spot .name{display:block;font-size:19px;font-weight:700;letter-spacing:-.01em;text-shadow:0 2px 10px rgba(0,0,0,.5)}
 .spot .place{display:block;margin:2px 0 10px;font-size:12px;opacity:.85;letter-spacing:.08em;text-transform:uppercase}
-.spot .meta{display:flex;gap:14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.spot .meta{display:flex;gap:14px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
 .spot .meta b{color:var(--accent)}
 .diff{display:inline-flex;gap:3px;align-items:center}
 .diff i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.28);display:block}
@@ -112,22 +112,22 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 #s-brief{justify-content:flex-end;align-items:center}
 @media (orientation:landscape){ #s-brief{justify-content:center;align-items:flex-start} }
 .brief-head h2{margin:0;font-size:clamp(22px,6vw,30px)}
-.brief-head p{margin:4px 0 18px;opacity:.65;letter-spacing:.2em;text-transform:uppercase;font-size:11px}
+.brief-head p{margin:4px 0 18px;opacity:.65;letter-spacing:.2em;text-transform:uppercase;font-size:12px}
 .stats{display:flex;justify-content:center;gap:10px;margin-bottom:16px}
 .stats div{flex:1;background:rgba(255,255,255,.06);border-radius:14px;padding:12px 6px}
 .stats span{display:block;font-size:19px;font-weight:800;color:var(--accent)}
-.stats small{font-size:9px;letter-spacing:.16em;text-transform:uppercase;opacity:.6}
+.stats small{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.6}
 .note{font-size:13px;line-height:1.5;opacity:.8;margin:0}
 
 /* HUD */
 .hud-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.hud-cell{font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.9;text-shadow:0 2px 10px rgba(0,0,0,.6)}
-.hud-cell small{display:block;opacity:.6;font-size:9px}
+.hud-cell{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.9;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.hud-cell small{display:block;opacity:.6;font-size:12px}
 .hud-cell b{font-size:clamp(18px,5vw,26px);font-weight:900}
 .hud-cell.center{text-align:center;flex:1}
 .hud-cell.center b{color:var(--accent)}
 .hud-cell.right{text-align:right}
-#hud-streak{color:var(--good);font-weight:800;opacity:0;letter-spacing:.2em;font-size:10px;
+#hud-streak{color:var(--good);font-weight:800;opacity:0;letter-spacing:.2em;font-size:12px;
   transition:opacity .2s ease}
 #hud-streak.on{opacity:1}
 #hud-streak.dim{opacity:.45}
@@ -164,11 +164,11 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
   background:#fff;box-shadow:0 0 8px rgba(255,255,255,.7);will-change:transform}
 #level[data-planche="parfaite"] #level-bubble{background:var(--good);box-shadow:0 0 10px var(--good)}
 #level[data-planche="bancale"] #level-bubble{background:var(--hot);box-shadow:0 0 10px var(--hot)}
-#level-label{position:absolute;left:50%;top:-20px;transform:translateX(-50%);white-space:nowrap;text-align:center;font-size:9px;font-weight:800;letter-spacing:.16em;
+#level-label{position:absolute;left:50%;top:-20px;transform:translateX(-50%);white-space:nowrap;text-align:center;font-size:12px;font-weight:800;letter-spacing:.16em;
   text-shadow:0 2px 8px rgba(0,0,0,.8)}
 #level[data-planche="parfaite"] #level-label{color:var(--good)}
 #level[data-planche="bancale"] #level-label{color:var(--hot)}
-.wind-line{margin:10px 0 0;font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
+.wind-line{margin:10px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
 
 /* L'anneau vit en bas de l'ecran : au centre il couvrait le plongeur, c'est-a-dire
    precisement ce qu'il faut regarder pour anticiper l'eau. */
@@ -186,7 +186,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
   font-weight:900;text-shadow:0 2px 12px rgba(0,0,0,.7);gap:2px}
 #tr-grade{font-size:clamp(13px,3.8vw,19px);letter-spacing:.18em;transition:color .08s}
 #pot{font-size:clamp(18px,5.4vw,28px);letter-spacing:.02em;color:#fff;font-variant-numeric:tabular-nums;min-height:1.1em}
-#tr-streak{font-size:9px;letter-spacing:.2em;color:var(--good);min-height:1em}
+#tr-streak{font-size:12px;letter-spacing:.2em;color:var(--good);min-height:1em}
 /* la couleur de la note que le lacher donnerait maintenant */
 #tuckring[data-grade="chicken"] #tr-grade,#tuckring[data-grade="early"] #tr-grade{color:#b9c6d4}
 #tuckring[data-grade="good"] #tr-grade{color:var(--cool)}
@@ -217,7 +217,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .result h2{margin:0 0 4px;font-size:clamp(30px,9vw,50px);font-weight:900;letter-spacing:-.02em}
 .result p{margin:0 0 18px;opacity:.75;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
 #jr-timing{margin:-10px 0 12px;font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
-#jr-landing{margin:-8px 0 12px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.65}
+#jr-landing{margin:-8px 0 12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.65}
 #jr-landing b{color:var(--ink);opacity:.95;letter-spacing:.2em}
 #jr-gauge{margin:0 0 18px}
 .g-track{position:relative;height:10px}
@@ -230,7 +230,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .g-zone.smack{background:rgba(255,77,94,.45)}
 .g-mark{position:absolute;top:-4px;bottom:-4px;width:3px;border-radius:2px;background:#fff;
   box-shadow:0 0 0 2px rgba(4,14,26,.8);transform:translateX(-1.5px)}
-.g-ends{display:flex;justify-content:space-between;margin-top:5px;font-size:9px;
+.g-ends{display:flex;justify-content:space-between;margin-top:5px;font-size:12px;
   letter-spacing:.18em;text-transform:uppercase;opacity:.45}
 
 .breakdown{list-style:none;margin:0 0 20px;padding:0;text-align:left;font-size:13px}
@@ -238,13 +238,13 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .breakdown li b{color:var(--accent)}
 .breakdown li.total{border:0;font-size:16px;font-weight:800;padding-top:12px}
 .final{font-size:clamp(44px,14vw,74px);font-weight:900;color:var(--accent);line-height:1;margin:6px 0 10px}
-.tap-hint{margin:10px 0 0 !important;font-size:10px !important;opacity:.4 !important;letter-spacing:.2em}
+.tap-hint{margin:10px 0 0 !important;font-size:12px !important;opacity:.4 !important;letter-spacing:.2em}
 
 /* LE GESTE, sur la fiche du spot */
 .gesture{list-style:none;margin:16px 0 0;padding:0;display:flex;gap:8px;counter-reset:g}
 .gesture li{flex:1;background:rgba(255,255,255,.06);border-radius:14px;padding:10px 4px 9px;display:flex;flex-direction:column;align-items:center;gap:2px}
 .gesture b{font-size:12px;letter-spacing:.16em;color:var(--accent)}
-.gesture small{font-size:9px;letter-spacing:.08em;opacity:.65;text-transform:uppercase}
+.gesture small{font-size:12px;letter-spacing:.08em;opacity:.65;text-transform:uppercase}
 .gesture i{width:26px;height:26px;border-radius:50%;margin-bottom:4px;position:relative;border:2px solid rgba(255,255,255,.55)}
 .gesture i::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
 .gesture .g1::after{animation:g1 1.6s ease-in-out infinite}
@@ -260,3 +260,39 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 #quit[hidden]{display:none}
 /* Le choix au clavier et a la manette doit se voir de loin. */
 .btn:focus-visible,.spot:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+
+/* Relecture du gauntlet du 30/09 : la consigne passait sur la dalle claire du plongeoir,
+   sans contraste. Elle a son propre fond, et nomme la touche du geste. */
+#prompt{left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:92vw;white-space:normal;
+  background:rgba(4,14,26,.62);padding:7px 16px;border-radius:99px;opacity:1;color:#fff}
+#prompt:empty{display:none}
+#prompt[data-key]:not([data-key=""])::before{content:attr(data-key);display:inline-block;margin-right:10px;padding:1px 8px;
+  border:1.5px solid rgba(255,255,255,.8);border-radius:6px;font-weight:900;letter-spacing:.08em;color:var(--accent);border-color:var(--accent)}
+/* l'anneau dit ce qu'il montre : la note si on lache maintenant */
+#tuckring::before{content:"";position:absolute;inset:9%;border-radius:50%;background:rgba(4,14,26,.5)}
+#tr-cap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11px;letter-spacing:.14em;opacity:.8;font-weight:800}
+/* la zone d'appel porte son nom : la barre ne rogne plus ce qui depasse */
+#runbar{overflow:visible}
+#runbar-zone{border-radius:0 99px 99px 0}
+#runbar-zone small{position:absolute;left:50%;top:calc(100% + 3px);transform:translateX(-50%);font-size:11px;
+  font-weight:900;letter-spacing:.16em;color:var(--good);text-shadow:0 1px 6px rgba(0,0,0,.8);white-space:nowrap}
+/* la pastille de decollage au-dessus de la tete, pas sur le visage */
+#toast{top:17%}
+/* sous une carte de resultat ou de fin, le HUD du saut disparait */
+body:has(#s-jump.on) .hud-top,body:has(#s-end.on) .hud-top,body:has(#s-jump.on) #tuckring,body:has(#s-end.on) #tuckring{opacity:0}
+/* le total du saut domine la carte */
+.breakdown li.total{font-size:18px}
+.breakdown li.total b{font-size:26px;color:var(--accent)}
+/* les spots : 3 colonnes au plus, et une aide aux touches sur PC */
+#spot-list{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));max-width:880px;width:100%;margin:0 auto;padding-bottom:64px}
+.spots-hint{margin:8px 0 0;text-align:center;font-size:12px;letter-spacing:.1em;opacity:.7}
+@media (pointer:coarse){.spots-hint{display:none}}
+/* fiches opaques : le plongeur ne se voit plus a travers */
+.card{background:rgba(7,22,38,.95)}
+/* titre sur PC : le logo descend sous l'ile, le plongeur et les arbres restent visibles */
+@media (min-width:900px) and (min-aspect-ratio:5/4){
+  #s-title{align-items:flex-start;text-align:left;padding-left:6vw;
+    background:linear-gradient(90deg, rgba(4,14,26,.72), rgba(4,14,26,.25) 45%, rgba(4,14,26,0) 70%)}
+  #s-title .logo{font-size:104px}
+  #quit{margin-left:0}
+}

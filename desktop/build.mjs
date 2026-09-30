@@ -72,6 +72,9 @@ async function pack(targets) {
       ignore: [/^\/dist/, /^\/node_modules\/(@types|undici-types|playwright-core)(\/|$)/, /^\/icons\.sh$/, /^\/build\.mjs$/, /^\/smoke\.mjs$/, /^\/icons\/src/, /^\/node_modules\/(electron|@electron|three)(\/|$)/, /\.map$/]
     };
     if (fs.existsSync(icon)) opts.icon = icon;
+    // steamworks.js livre deja ses binaires darwin-x64 et darwin-arm64 cote a cote, et une
+    // dylib universelle : identiques dans les deux builds, on dit a la fusion de les garder.
+    if (arch === 'universal') opts.osxUniversal = { x64ArchFiles: '**/steamworks.js/dist/osx/*' };
     try {
       const [dir] = await packager(opts);
       const [lib, dest] = STEAM_LIB[t];
