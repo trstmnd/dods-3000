@@ -12,13 +12,15 @@ const USE_GPU = process.env.GPU ? process.env.GPU === '1' : process.platform ===
 const GL_ARGS = USE_GPU ? ['--ignore-gpu-blocklist', '--enable-gpu']
   : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 
-export async function open({ width = 420, height = 820, render = false, touch = false, lang = '', scale = 1 } = {}) {
+export async function open({ width = 420, height = 820, render = false, touch = false, lang = '', scale = 1, save = null } = {}) {
   const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
   const browser = await chromium.launch({
     executablePath: CHROME, proxy,
     args: ['--ignore-certificate-errors', ...GL_ARGS]
   });
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width, height }, hasTouch: touch, isMobile: touch, deviceScaleFactor: scale, ...(lang ? { locale: lang } : {}) });
+  // une sauvegarde posee avant le chargement : records, sauts, langue (captures de vitrine)
+  if (save) await ctx.addInitScript(v => { try { localStorage.setItem('dods3000.v1', v); } catch { } }, JSON.stringify(save));
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));

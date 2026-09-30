@@ -12,12 +12,14 @@ const DIR = process.argv[2] || 'shots';
 const SIZES = { steam: [1920, 1080], deck: [1280, 800], mobile: [390, 844] };
 const WANT = (process.argv[3] || 'steam,deck,mobile').split(',');
 const LANG = process.argv[4] || '';
+// VITRINE=1 : un joueur qui a deja des records (captures de la page Steam, pas du gauntlet)
+const SAVE = process.env.VITRINE ? { best: { frogner: 2480, ricks: 3310, comino: 4120, mostar: 5630, quebrada: 6210, lysefjord: 8120 }, jumps: 60 } : null;
 fs.mkdirSync(DIR, { recursive: true });
 const all = [];
 
 for (const name of WANT) {
   const [width, height] = SIZES[name];
-  const { browser, page, errs } = await open({ width, height, render: true, touch: name === 'mobile', lang: LANG });
+  const { browser, page, errs } = await open({ width, height, render: true, touch: name === 'mobile', lang: LANG, save: SAVE });
   await page.evaluate(() => { window.__dods.quality.on = false; });
   const snap = async (tag) => {
     await page.evaluate(() => window.__dods.draw());
