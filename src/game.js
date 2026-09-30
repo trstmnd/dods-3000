@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createDiver, applyPose, runPose, POSES, LANDINGS } from './diver.js';
+import { createDiver, applyPose, runPose, flightPose, POSES, LANDINGS } from './diver.js';
 import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
 import { mulberry32, seedFromString } from './noise.js';
 import { t } from './i18n.js';
@@ -317,7 +317,7 @@ export class Jump {
           while (this.pAcc >= h) { this.plancheStep(h); this.pAcc -= h; }
         }
         if (this.flailing) applyPose(d.joints, POSES.flail, Math.min(1, dt * 7));
-        else applyPose(d.joints, POSES.dods, Math.min(1, dt * 9));
+        else applyPose(d.joints, POSES.dods, Math.min(1, dt * 9), flightPose(this.t));
         // le corps s'ouvre a l'horizontale, ventre vers l'eau : c'est la signature du dods,
         // et l'inclinaison de la planche se lit directement sur lui
         const pitch = this.flailing ? 0.9 : 1.48 + this.tilt;
