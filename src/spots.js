@@ -104,9 +104,9 @@ export const SPOTS = [
     note: "Trente-quatre mètres de granite au-dessus d'un fjord noir. Personne ne regarde. C'est ce qui fait peur.",
     noteEn: "Thirty-four meters of granite above a black fjord. Nobody is watching. That's what's scary.",
     palette: {
-      sky: ['#48617f', '#b9cfe0'], sun: '#e8f0ff', sunPos: [-180, 58, 120],
-      water: '#12384f', deep: '#03121c', rock: '#5f6a72', rock2: '#3e474e',
-      fog: '#9fb7c9', fogDensity: 0.00484, ambient: 0.55, clouds: 0.66
+      sky: ['#3d5a7d', '#c9a97e'], sun: '#ffd9a0', sunPos: [-185, 24, 118],
+      water: '#3f5d70', deep: '#12293a', rock: '#7d8388', rock2: '#53585d',
+      fog: '#e3c49b', fogDensity: 0.0034, ambient: 0.62, clouds: 0.5
     }
   }
 ];

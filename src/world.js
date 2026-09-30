@@ -1,23 +1,14 @@
 import * as THREE from 'three';
+import { Water } from 'three/addons/objects/Water.js';
 import { mulberry32, seedFromString, fbm } from './noise.js';
 
 // Repere du jeu : la falaise occupe z < 0, l'eau est en z > 0 (a droite de l'ecran).
 // Le plongeur court de z = -9 vers le bord z = 0, a x = 0. Le niveau de l'eau est y = 0.
+// La surface est un miroir (Water.js) : ses vagues ne sont que des normales, le plan reste
+// a y = 0 et la physique du saut ne lit jamais la mer (invariant 2 de AGENTS.md).
 
 export const EDGE_Z = 0;
 export const RUN_START_Z = -9.5;
-
-const WAVES = [
-  { ax: 0.31, az: 0.11, k: 0.30, spd: 1.15, amp: 0.26 },
-  { ax: -0.18, az: 0.42, k: 0.47, spd: 0.85, amp: 0.17 },
-  { ax: 0.55, az: -0.30, k: 0.93, spd: 1.9, amp: 0.065 }
-];
-
-export function waveHeight(x, z, t) {
-  let h = 0;
-  for (const w of WAVES) h += Math.sin((x * w.ax + z * w.az) * w.k + t * w.spd) * w.amp;
-  return h;
-}
 
 // Une texture de bruit periodique, calculee une fois en JS : la mer et le ciel la lisent
 // en une ou deux lectures par pixel. Le meme bruit calcule dans le shader coutait huit
@@ -79,11 +70,12 @@ function noiseTexture() {
   return t;
 }
 
-// L'onde circulaire laissee par l'entree du plongeur. Elle vit dans les deux etages :
-// un relief discret au sommet, une crete d'ecume nette au fragment. Purement visuelle,
-// la physique du saut ne lit jamais la hauteur de l'eau.
+// L'onde circulaire et l'ecume laissee par l'entree du plongeur. Elles vivent dans le
+// shader de l'eau (Water.js, patche plus bas) : un disque pose au-dessus de l'eau passerait
+// sous les reflets. Purement visuelles, la physique du saut ne lit jamais la mer.
+// `time` est l'horloge du materiau de Water, uImpact.xyz = (x, z, date d'entree).
 const RIPPLE = `
-  float rippleAge(){ return uTime - uImpact.z; }
+  float rippleAge(){ return time - uImpact.z; }
   float rippleBand(vec2 xz){
     float age = rippleAge();
     if (age <= 0.0 || age > 2.6) return 0.0;
@@ -91,19 +83,10 @@ const RIPPLE = `
     float k = 1.0 - clamp(abs(d - age * 7.0) / 2.2, 0.0, 1.0);
     return k * k * (1.0 - age / 2.6) * smoothstep(26.0, 2.0, d);
   }
-  float rippleH(vec2 xz){
-    float age = rippleAge();
-    if (age <= 0.0 || age > 2.6) return 0.0;
-    float d = distance(xz, uImpact.xy);
-    return sin((d - age * 7.0) * 1.6) * rippleBand(xz) * 0.3;
-  }
 `;
-
-// L'ecume qui reste a la surface apres l'entree. Elle vit DANS la mer : un disque pose
-// au-dessus de l'eau passait sous les cretes des vagues et flottait au-dessus des creux.
 const IMPACT_FOAM = `
   float impactFoam(vec2 xz){
-    float age = uTime - uImpact.z;
+    float age = time - uImpact.z;
     if (age < 0.0 || age > 6.0) return 0.0;
     float d = distance(xz, uImpact.xy);
     // hors du disque d'ecume, on sort avant le bruit : c'est presque toute la mer
@@ -116,100 +99,69 @@ const IMPACT_FOAM = `
   }
 `;
 
-function waterMaterial(pal, sunDir, noise) {
-  const consts = WAVES.map((w, i) =>
-    `const vec4 W${i} = vec4(${w.ax.toFixed(3)}, ${w.az.toFixed(3)}, ${w.k.toFixed(3)}, ${w.spd.toFixed(3)});
-     const float A${i} = ${w.amp.toFixed(4)};`).join('\n');
+// La texture de normales que Water.js attend, calculee depuis le meme bruit periodique
+// que le ciel : aucune image a charger, et la texture se repete sans couture, ce que les
+// quatre echelles sommees par son shader exigent. Water lit les canaux en (x, z, y).
+let NORMALS = null;
+function waterNormals() {
+  if (NORMALS) return NORMALS;
+  const data = noiseData(), N = NOISE_N;
+  const H = (i, j) => data[(j * N + i) * 4] / 255;
+  const out = new Uint8Array(N * N * 4);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = (j * N + i) * 4;
+    const dx = (H(i + 1, j) - H(i - 1, j)) * 1.6;
+    const dz = (H(i, j + 1) - H(i, j - 1)) * 1.6;
+    const len = Math.hypot(dx, 1, dz);
+    out[k] = Math.round((0.5 + dx / len * 0.5) * 255);
+    out[k + 1] = Math.round((0.5 + dz / len * 0.5) * 255);
+    out[k + 2] = Math.round((1 / len) * 255);
+    out[k + 3] = 255;
+  }
+  const t = new THREE.DataTexture(out, N, N, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.needsUpdate = true;
+  NORMALS = t;
+  return t;
+}
 
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uShallow: { value: new THREE.Color(pal.water) },
-      uDeep: { value: new THREE.Color(pal.deep) },
-      uSun: { value: new THREE.Color(pal.sun) },
-      uSunDir: { value: sunDir.clone().normalize() },
-      uFog: { value: new THREE.Color(pal.fog) },
-      uFogDensity: { value: pal.fogDensity },
-      uSky: { value: new THREE.Color(pal.sky[0]) },
-      // x, z du point d'entree et date de l'impact, en temps de simulation
-      uImpact: { value: new THREE.Vector3(0, 0, -99) },
-      uImpactPow: { value: 1 },
-      uNoise: { value: noise }
-    },
-    vertexShader: `
-      ${consts}
-      uniform float uTime;
-      uniform vec3 uImpact;
-      varying vec3 vWorld; varying float vWave; varying vec3 vNormalW; varying float vDepth;
-      float phase(vec4 w, vec2 p){ return (p.x*w.x + p.y*w.y)*w.z + uTime*w.w; }
-      ${RIPPLE}
-      void main(){
-        vec3 p = position;
-        vec2 xz = p.xz;
-        float h = 0.0, dx = 0.0, dz = 0.0;
-        ${WAVES.map((w, i) => `{
-          float ph = phase(W${i}, xz);
-          h += sin(ph)*A${i};
-          dx += cos(ph)*A${i}*W${i}.x*W${i}.z;
-          dz += cos(ph)*A${i}*W${i}.y*W${i}.z;
-        }`).join('\n')}
-        // Le maillage est trop lache pour dessiner l'onde : le relief reste discret ici,
-        // c'est le fragment qui en fait une crete nette.
-        h += rippleH(xz);
-        p.y += h; vWave = h;
-        vNormalW = normalize(vec3(-dx, 1.0, -dz));
-        vec4 wp = modelMatrix * vec4(p, 1.0);
-        vWorld = wp.xyz;
-        vec4 mv = viewMatrix * wp;
-        vDepth = -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: `
-      uniform vec3 uShallow, uDeep, uSun, uSunDir, uFog, uSky;
-      uniform float uFogDensity, uTime, uImpactPow;
-      uniform vec3 uImpact;
-      uniform sampler2D uNoise;
-      varying vec3 vWorld; varying float vWave; varying vec3 vNormalW; varying float vDepth;
-      ${RIPPLE}
-      ${IMPACT_FOAM}
-      void main(){
-        vec3 N = normalize(vNormalW);
-        // Le maillage porte la houle, le fragment porte le clapot : deux couches de bruit
-        // qui derivent en sens contraire cassent les bandes lisses de pres. Au loin elles
-        // s'eteignent, sinon elles scintillent en moire.
-        float near = 1.0 - smoothstep(18.0, 90.0, vDepth);
-        if (near > 0.0) {
-          vec2 g1 = texture2D(uNoise, vWorld.xz * 0.053 + vec2(uTime * 0.02, uTime * 0.011)).gb - 0.5;
-          vec2 g2 = texture2D(uNoise, vWorld.xz * 0.131 - vec2(uTime * 0.013, -uTime * 0.023)).gb - 0.5;
-          N = normalize(N - vec3(g1.x * 0.55 + g2.x * 0.3, 0.0, g1.y * 0.55 + g2.y * 0.3) * near);
-        }
-        vec3 V = normalize(cameraPosition - vWorld);
-        float fres = pow(1.0 - max(dot(N, V), 0.0), 3.5);
-        float d = length(vWorld.xz - vec2(0.0, 6.0));
-        vec3 col = mix(uShallow, uDeep, smoothstep(14.0, 130.0, d));
-        col = mix(col, uShallow * 1.35, smoothstep(0.0, 0.32, vWave) * 0.4);
-        vec3 H = normalize(uSunDir + V);
-        float ndh = max(dot(N, H), 0.0);
-        // Deux lobes : l'eclat dur pour les etincelles, un lobe large pour la trainee du
-        // soleil sur l'eau. Le seul lobe dur n'allumait que quelques pixels.
-        col += uSun * pow(ndh, 110.0) * 1.6;
-        col += uSun * pow(ndh, 16.0) * 0.22;
-        // A angle rasant l'eau renvoie le ciel, pas le soleil : c'est ce qui pose l'horizon.
-        col = mix(col, mix(uSky, uSun, 0.25), fres * 0.55);
-        // Ecume au pied de la falaise. Les bords lateraux etaient coupes net par un step,
-        // ce qui dessinait un rectangle sur la mer.
-        float foam = (1.0 - smoothstep(0.0, 9.0, vWorld.z)) * (1.0 - smoothstep(15.0, 27.0, abs(vWorld.x)));
-        foam *= (0.5 + 0.5 * sin(vWorld.x * 1.7 + uTime * 2.3)) * (0.55 + 0.45 * sin(vWorld.x * 0.61 - uTime * 1.4));
-        foam = max(foam, rippleBand(vWorld.xz) * 0.8);
-        col = mix(col, vec3(0.93, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.6);
-        // l'eau blanche de l'entree, et l'eau claire et turquoise qu'elle laisse dessous
-        float imp = impactFoam(vWorld.xz);
-        col = mix(col, uShallow * 1.6 + 0.08, clamp(imp * 3.0, 0.0, 1.0) * 0.25);
-        col = mix(col, vec3(0.95, 0.99, 1.0), imp * 0.92);
-        float f = 1.0 - exp(-uFogDensity * uFogDensity * vDepth * vDepth);
-        gl_FragColor = vec4(mix(col, uFog, clamp(f, 0.0, 1.0)), 1.0);
-      }`
+// La mer : le composant Water des exemples three (MIT), qui reflecit vraiment le ciel, la
+// falaise et le soleil. On y recoud l'ecume du pied de falaise et l'onde d'entree : elles
+// etaient dans l'ancien shader maison et c'est la signature du jeu.
+function buildWater(pal, sunDir, noise) {
+  const water = new Water(new THREE.PlaneGeometry(1200, 1200), {
+    textureWidth: 512, textureHeight: 512,
+    waterNormals: waterNormals(),
+    sunDirection: sunDir.clone().normalize(),
+    sunColor: new THREE.Color(pal.sun),
+    waterColor: new THREE.Color(pal.deep),
+    distortionScale: 1.8,
+    fog: true
   });
+  water.rotation.x = -Math.PI / 2;
+  const mat = water.material;
+  mat.uniforms.uTime = mat.uniforms.time; // la meme seconde, le meme objet : fx.js ecrit uImpact a l'heure juste
+  mat.uniforms.uImpact = { value: new THREE.Vector3(0, 0, -99) };
+  mat.uniforms.uImpactPow = { value: 1 };
+  mat.uniforms.uNoise = { value: noise };
+  mat.fragmentShader = mat.fragmentShader
+    .replace('uniform vec3 waterColor;', `uniform vec3 waterColor;
+      uniform vec3 uImpact; uniform float uImpactPow; uniform sampler2D uNoise;`)
+    .replace('void main() {', `${RIPPLE}\n${IMPACT_FOAM}\nvoid main() {`)
+    .replace('vec3 outgoingLight = albedo;', `vec3 outgoingLight = albedo;
+      {
+        // l'or du couchant couche au loin : a cette heure la mer distante est un
+        // miroir du ciel meme vue de haut, ce que le seul Fresnel ne donne pas.
+        float glow = smoothstep(60.0, 320.0, distance);
+        outgoingLight = mix(outgoingLight, sunColor * 1.05, glow * 0.5);
+        float foam = (1.0 - smoothstep(0.0, 7.0, worldPosition.z)) * (1.0 - smoothstep(15.0, 27.0, abs(worldPosition.x)));
+        foam *= (0.5 + 0.5 * sin(worldPosition.x * 1.7 + time * 2.3)) * (0.55 + 0.45 * sin(worldPosition.x * 0.61 - time * 1.4));
+        foam = max(foam, rippleBand(worldPosition.xz) * 0.85);
+        outgoingLight = mix(outgoingLight, vec3(0.93, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.48);
+        float imp = impactFoam(worldPosition.xz);
+        outgoingLight = mix(outgoingLight, vec3(0.95, 0.99, 1.0), imp * 0.92);
+      }`);
+  return water;
 }
 
 function skyDome(pal, noise) {
@@ -460,11 +412,11 @@ export function buildWorld(spot, renderer) {
   fill.position.set(-120, 45, -60);
   scene.add(fill);
 
-  const waterGeo = new THREE.PlaneGeometry(1200, 1200, 128, 128);
-  waterGeo.rotateX(-Math.PI / 2);
-  const waterMat = waterMaterial(pal, sunDir, noise);
-  const water = new THREE.Mesh(waterGeo, waterMat);
+  const water = buildWater(pal, sunDir, noise);
+  const waterMat = water.material;
   water.position.z = 60;
+  // le shader de Water lit le masque d'ombre : le plongeur en vol se projette sur la mer
+  water.receiveShadow = true;
   water.renderOrder = -1;
   scene.add(water);
 
