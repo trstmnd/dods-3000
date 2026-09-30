@@ -7,8 +7,8 @@ faire que depuis le compte Steamworks de Tristan.
 
 | Pièce | Commande | Sortie |
 |---|---|---|
-| Capsules, héros, logo, fond, icône | `./tools/run.sh gauntlet/store.mjs <dossier>` | 9 PNG aux dimensions exactes de Steamworks |
-| Captures d'écran | `./tools/run.sh gauntlet/shots.mjs <dossier> steam en` | 10 PNG 1920x1080, en jeu, interface en anglais |
+| Capsules, héros, logo, fond, icône, succès | `./tools/run.sh gauntlet/store.mjs <dossier>` | 9 PNG aux dimensions exactes de Steamworks, 18 icônes de succès 256x256 (obtenu et gris) |
+| Captures d'écran | `VITRINE=1 ./tools/run.sh gauntlet/shots.mjs <dossier> steam en` | 10 PNG 1920x1080, en jeu, anglais, records remplis ; le kit en garde 7 (sans la fiche, la course ni la fin) |
 | Bande-annonce | `./tools/run.sh gauntlet/trailer.mjs <fichier.mp4> en` | 28 s, H.264 1080p 30 i/s, sans son |
 | Builds | `cd desktop && node build.mjs pack` | `desktop/dist/` : Windows x64, macOS universel, Linux x64 |
 | Icônes de l'application | `cd desktop && ./icons.sh` | `desktop/icons/` : icns, ico, png |
@@ -25,7 +25,8 @@ Rien de tout ça n'est versionné : le dépôt ne porte aucun binaire.
 | Library hero (sans texte) | 3840x1240 | library_hero.png |
 | Library logo (transparent) | 1280x720 | library_logo.png |
 | Page background | 1438x810 | page_background.png |
-| Icône | 1024 source, 184 et 32 à dériver | icon_1024.png |
+| Icône | 1024 source, 184 (communauté, JPG) et 32 (client, ICO) | icon_1024.png, community_icon_184.jpg, client_icon_32.ico |
+| Succès | 256x256 JPG, obtenu et non obtenu | achievements/*.jpg, *_locked.jpg |
 
 ## Textes
 
@@ -54,3 +55,4 @@ configuration requise. `achievements.md` : les 9 succès, identifiants à repren
   demande un compte Apple Developer (99 USD par an).
 - **La bande-annonce est muette** : le son du jeu est synthétisé en direct et ne passe pas
   par la capture.
+- **Taille des icônes de succès** : générées en 256x256, à revérifier contre la page Steamworks au moment de l'envoi.

@@ -56,6 +56,8 @@ await browser.close();
 
 execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-framerate', String(FPS), '-i', `${TMP}/f%05d.jpg`,
   '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
-  '-vf', `scale=${W}:${H},fade=t=in:st=0:d=0.5,fade=t=out:st=${(n / FPS - 0.6).toFixed(2)}:d=0.6`, OUT]);
+  // les JPEG sont en plage pleine : sans conversion explicite la video sortait en yuvj420p
+  '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
+  '-vf', `scale=${W}:${H}:out_color_matrix=bt709:out_range=tv,fade=t=in:st=0:d=0.5,fade=t=out:st=${(n / FPS - 0.6).toFixed(2)}:d=0.6`, OUT]);
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log(JSON.stringify({ video: OUT, images: n, secondes: +(n / FPS).toFixed(1), erreurs: errs }));

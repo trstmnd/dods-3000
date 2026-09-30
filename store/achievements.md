@@ -1,7 +1,7 @@
 # Succès Steam
 
 À déclarer dans Steamworks, Stats et succès, avec l'identifiant EXACT de la première colonne :
-c'est celui que le jeu envoie (`src/platform.js`). Icône 64x64 JPG par succès, obtenu et non obtenu.
+c'est celui que le jeu envoie (`src/platform.js`). Icônes 256x256 JPG, obtenue et non obtenue, rendues par `tools/gauntlet/store.mjs` (dossier `achievements/`).
 
 | Identifiant | Nom EN | Description EN | Nom FR | Description FR |
 |---|---|---|---|---|

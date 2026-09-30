@@ -8,3 +8,4 @@ tools/package*.json
 tools/gauntlet/.hearth
 tools/gauntlet/out
 tools/.site-probe
+store/steampipe/out
