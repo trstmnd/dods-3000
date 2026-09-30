@@ -156,6 +156,51 @@ qu'après 14° de dérapage, il sort désormais dès 9°, et dès le début du v
 bien glisser rapporte de +2 à +11 %, glisser à contresens coûte de 6 à 25 %, et ne rien
 faire à Frognerbadet garde 98 % du score maximal.
 
+## La v3.2 : la version Steam, et un gauntlet outillé (30/09/2026)
+
+Objectif : un rendu proposable sur Steam, obtenu par une boucle de vérification qui joue
+au jeu plutôt que de relire son code. Recherche GitHub de 10 dépôts, retenus :
+hearth-probe (bots qui jouent à un jeu web), des checklists de Claude-Code-Game-Studios,
+game-juice, steamworks.js. Détail et écartés : `tools/gauntlet/README.md`.
+
+Ce qui a été construit :
+
+- `tools/gauntlet/` : une commande, 7 étages (contrôles, règles, manette, 1 620 sauts de
+  joueurs simulés, bots hearth, 40 captures en 3 formats et 2 langues, fenêtre Electron),
+  un `VERDICT.md` PASS, FAIL ou WARN, puis 4 relecteurs en contexte frais.
+- Le jeu en anglais et en français, jouable entier au clavier seul et à la manette seule
+  (20 étapes vérifiées par `manette.mjs`), interface à l'échelle des grands écrans.
+- `desktop/` : Electron hors ligne (Three.js local, hash vérifié), Windows x64, macOS
+  universel, Linux x64 ; 9 succès Steam branchés, sans effet hors Steam.
+- `store/` : textes, succès, script SteamPipe ; capsules, captures et bande-annonce
+  rendues par le moteur du jeu (`store.mjs`, `shots.mjs`, `trailer.mjs`).
+
+Ce que la passe 1 a trouvé, et que les tests existants ne voyaient pas :
+
+| Défaut | Trouvé par | Gravité | Correction |
+|---|---|---|---|
+| au clavier, l'écran des spots était un cul-de-sac : Espace n'y faisait rien | bots hearth (bloqués 180 pas sur le même écran) | bloquant pour Steam | un spot choisi d'office à l'arrivée, Espace et A l'ouvrent |
+| HUD de 9 à 12 px sur un écran 1080p ou un Deck | relecteurs joueur Steam et QA | majeur | toute l'interface grandit d'un bloc (`--ui`, 1,9 en 1080p), 12 px au plus petit |
+| la touche du geste n'était jamais nommée en jeu | joueur Steam | majeur | la consigne porte une touche : ESPACE, CLIC ou A selon le dernier périphérique |
+| consigne illisible sur la dalle claire du plongeoir | QA visuel | majeur | pastille sombre sous la consigne |
+| un joueur qui attend le label PERFECT pour lâcher s'écrasait 74 % du temps au premier spot | game designer (profil « réactif » ajouté au bot) | majeur | fenêtre PERFECT de 0,30 s à 10 m |
+| l'expert faisait 98 % de PERFECT à 34 m : plus rien à apprendre | bot, porte WARN | majeur | fenêtre de 0,096 s à 34 m (avant 0,144 s) |
+| « PERFECT » au niveau à bulle et « CHICKEN » dans l'anneau au même instant | joueur Steam, game designer | mineur | la planche parfaite s'affiche À PLAT / FLAT, l'anneau dit « SI TU LÂCHES » |
+| îlots du décor lus comme des pyramides blanches | joueur Steam | mineur | plus bas, plus larges, teinte de roche |
+| écran titre en 16/9 : le logo couvrait l'île et le plongeur | joueur Steam, QA | mineur | île décalée à droite par la caméra, logo à gauche |
+
+La passe 2 a trouvé un dernier défaut par les bots hearth : un Espace commencé sur un
+bouton et relâché après un clic ailleurs n'activait rien (le natif n'active qu'au relâcher,
+sur le même élément). Les boutons s'activent désormais à l'appui. Une partie restait
+« bloquée » ensuite sur la graine 3 : le journal des touches montre 43 événements en 300
+pas et aucun Espace dans les 180 derniers, un hasard du bot et pas du jeu. La porte passe
+en WARN pour une partie bloquée, FAIL à partir de deux.
+
+Mes erreurs cette fois : la première porte hearth de `verdict.mjs` lisait un champ absent
+et rendait **PASS sur un rapport qui signalait un bloquant**. Une porte verte par défaut
+est pire qu'une porte absente : elle lit désormais `report.json` et exige que le bot
+atteigne l'eau depuis le titre.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet

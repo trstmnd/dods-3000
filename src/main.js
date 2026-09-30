@@ -646,8 +646,11 @@ function onRelease(e) {
 const isAction = e => e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.key === ' ';
 window.addEventListener('keydown', e => {
   if (isAction(e)) {
-    // Un bouton a le focus : on lui laisse son Espace et son Entree natifs.
-    if (e.target && e.target.closest && e.target.closest('button')) return;
+    // Un bouton a le focus : il s'active des l'appui. Le natif n'active l'Espace qu'au
+    // relacher, et seulement si le focus n'a pas bouge entre les deux : un clic pendant
+    // l'appui perdait l'action, et les bots hearth restaient bloques sur la fiche (30/09).
+    const b = e.target && e.target.closest && e.target.closest('button');
+    if (b) { e.preventDefault(); if (!e.repeat) { lastInput = 'key'; b.click(); } return; }
     e.preventDefault();
     if (e.repeat) return;
     lastInput = 'key';
@@ -787,7 +790,8 @@ function pollPad(dt) {
 window.__dods = {
   press: () => onPress(null), down: () => onPress(null), up: () => onRelease(null),
   get jump() { return jump; }, get world() { return world; }, camera, renderer,
-  get state() { return state; }, show, startRun, openBrief, quality, spots: SPOTS,
+  get state() { return state; }, get owner() { return owner; }, get held() { return [...held]; }, get autoPaused() { return autoPaused; },
+  show, startRun, openBrief, quality, spots: SPOTS,
   autoJump: null, autoTuck: null, autoSteer: false, paused: false, slowmo: true, render: true,
   // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
   draw: () => { if (world) renderer.render(world.scene, camera); },
