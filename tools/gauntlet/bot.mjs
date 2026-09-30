@@ -20,7 +20,11 @@ const OUT = process.argv[3] || '';
 const PROFILES = {
   debutant: { jumpAim: 1.6, jumpSd: 0.40, tuckAim: 0.30, tuckSd: 0.090, lag: 0.25, gain: 0.5, noise: 0.25, steerP: 0.5 },
   regulier: { jumpAim: 1.1, jumpSd: 0.24, tuckAim: 0.22, tuckSd: 0.055, lag: 0.17, gain: 0.8, noise: 0.15, steerP: 0.9 },
-  expert:   { jumpAim: 0.8, jumpSd: 0.13, tuckAim: 0.17, tuckSd: 0.030, lag: 0.11, gain: 1.0, noise: 0.08, steerP: 1.0 }
+  expert:   { jumpAim: 0.8, jumpSd: 0.13, tuckAim: 0.17, tuckSd: 0.030, lag: 0.11, gain: 1.0, noise: 0.08, steerP: 1.0 },
+  // Le joueur qui attend que l'anneau affiche PERFECT pour lacher : il lache un temps de
+  // reaction humain APRES le label (0,22 s en moyenne). Profil ajoute par le relecteur game
+  // designer du 30/09 : c'est le piege du premier saut, que les profils a visee fixe ratent.
+  reactif:  { jumpAim: 1.1, jumpSd: 0.24, react: 0.22, reactSd: 0.06, lag: 0.17, gain: 0.8, noise: 0.15, steerP: 0.9 }
 };
 
 const { browser, page, errs } = await open();
@@ -41,7 +45,9 @@ const res = await page.evaluate(([RUNS, PROFILES]) => {
     let steer = 0;
     Object.defineProperty(j, 'steer', { get: () => steer, set() {}, configurable: true });
     d.autoJump = Math.max(0.05, P.jumpAim + gauss() * P.jumpSd);
-    d.autoTuck = Math.max(0.0, P.tuckAim + gauss() * P.tuckSd);
+    d.autoTuck = P.react != null
+      ? Math.max(0, j.win.perfectHi - (P.react + gauss() * P.reactSd))
+      : Math.max(0.0, P.tuckAim + gauss() * P.tuckSd);
     const pilots = rnd() < P.steerP;
     const dt = 1 / 60, lagN = Math.round(P.lag / dt), hist = [];
     let f = 0, maxTilt = 0;
@@ -74,8 +80,16 @@ const res = await page.evaluate(([RUNS, PROFILES]) => {
     out[name] = {};
     for (const spot of d.spots) {
       const tally = { n: 0, grades: {}, takeoffs: {}, planche: {}, falls: 0, score: 0, maxDeg: 0 };
-      for (let r = 0; r < RUNS; r++) for (let n = 1; n <= 3; n++) {
+      let runSum = 0, run8k = 0;
+      for (let r = 0; r < RUNS; r++) {
+        // un run comme dans le jeu : serie x1,2 a deux GREAT ou mieux, x1,5 a trois, un
+        // plat arrete tout
+        let run = 0, streak = 0;
+        for (let n = 1; n <= 3; n++) {
         const x = one(spot, P, n);
+        const dead = x.grade === 'smack' || x.grade === 'none';
+        streak = !dead && ['perfect', 'great'].includes(x.grade) ? streak + 1 : 0;
+        run += Math.round(x.score * (streak >= 3 ? 1.5 : streak >= 2 ? 1.2 : 1));
         tally.n++;
         tally.grades[x.grade] = (tally.grades[x.grade] || 0) + 1;
         tally.takeoffs[x.takeoff] = (tally.takeoffs[x.takeoff] || 0) + 1;
@@ -83,6 +97,9 @@ const res = await page.evaluate(([RUNS, PROFILES]) => {
         tally.falls += x.fell ? 1 : 0;
         tally.score += x.score;
         tally.maxDeg += x.maxDeg;
+        if (dead) break;
+        }
+        runSum += run; if (run >= 8000) run8k++;
       }
       const pct = k => Math.round(100 * (tally.grades[k] || 0) / tally.n);
       out[name][spot.id] = {
@@ -93,7 +110,8 @@ const res = await page.evaluate(([RUNS, PROFILES]) => {
         scoreMoyen: Math.round(tally.score / tally.n),
         plancheParfaite: Math.round(100 * (tally.planche.parfaite || 0) / tally.n),
         plancheBancale: Math.round(100 * (tally.planche.bancale || 0) / tally.n),
-        inclinaisonMaxMoy: Math.round(tally.maxDeg / tally.n)
+        inclinaisonMaxMoy: Math.round(tally.maxDeg / tally.n),
+        runMoyen: Math.round(runSum / RUNS), run8000: Math.round(100 * run8k / RUNS)
       };
     }
   }
@@ -106,10 +124,11 @@ if (OUT) { const fs = await import('node:fs'); fs.writeFileSync(OUT, json); }
 // Tableau lisible : une ligne par profil et par spot.
 for (const [p, spots] of Object.entries(res)) {
   console.log(`\n${p}`);
-  console.log('spot'.padEnd(12) + 'h   perf great good  early smack chute  score  pl.parf pl.banc');
+  console.log('spot'.padEnd(12) + 'h   perf great good  early smack chute  score  pl.parf pl.banc    run  >=8k');
   for (const [id, r] of Object.entries(spots)) {
     console.log(id.padEnd(12) + String(r.hauteur).padEnd(4) + [r.perfect, r.great, r.good, r.early, r.smack, r.chute].map(v => String(v + '%').padStart(5)).join(' ')
-      + String(r.scoreMoyen).padStart(7) + String(r.plancheParfaite + '%').padStart(8) + String(r.plancheBancale + '%').padStart(8));
+      + String(r.scoreMoyen).padStart(7) + String(r.plancheParfaite + '%').padStart(8) + String(r.plancheBancale + '%').padStart(8)
+      + String(r.runMoyen).padStart(7) + String(r.run8000 + '%').padStart(6));
   }
 }
 if (errs.length) console.log('\nERREURS', errs);

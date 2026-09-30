@@ -378,8 +378,8 @@ function endRun(dead) {
   const best = save.best[state.spot.id] || 0;
   const record = state.runScore > best;
   if (record) { save.best[state.spot.id] = state.runScore; persist(); }
-  if (state.runScore >= 5000) achieve(ACH.RUN_5000);
-  if (totalScore() >= 20000) achieve(ACH.TOTAL_20000);
+  if (state.runScore >= 8000) achieve(ACH.RUN_8000);
+  if (totalScore() >= 30000) achieve(ACH.TOTAL_30000);
   $('#end-title').textContent = dead ? t('end.over') : t('end.done');
   $('#end-sub').textContent = state.spot.name + ' · ' + state.spot.height + ' m';
   $('#end-score').textContent = state.runScore;

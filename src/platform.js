@@ -18,8 +18,8 @@ export const ACH = {
   STREAK_3: 'STREAK_3',
   HIGH_PERFECT: 'HIGH_PERFECT',
   ALL_SPOTS: 'ALL_SPOTS',
-  RUN_5000: 'RUN_5000',
-  TOTAL_20000: 'TOTAL_20000'
+  RUN_8000: 'RUN_8000',
+  TOTAL_30000: 'TOTAL_30000'
 };
 
 const given = new Set();

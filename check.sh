@@ -53,10 +53,12 @@ cp src/game.js "$tmp/game.mjs"
 t "fenetres de tuck jouables" "node --input-type=module -e \"
   const src = (await import('node:fs')).readFileSync('src/game.js','utf8');
   const m = src.match(/const perfectLo = ([0-9.]+);[\s\S]*?const perfectHi = perfectLo \+ ([0-9.]+) \* k;/);
-  if (!m) throw new Error('fenetres introuvables');
-  const lo = +m[1], span = +m[2];
+  const e = src.match(/mapLinear\(height, 10, 34, 1\.0, ([0-9.]+)\), ([0-9.]+), 1\.05\)/);
+  if (!m || !e) throw new Error('fenetres introuvables');
+  const lo = +m[1], span = +m[2], kEnd = Math.max(+e[1], +e[2]);
   if (lo < 0.05 || lo > 0.12) throw new Error('perfectLo hors bornes');
-  if (span * 0.72 < 0.12) throw new Error('fenetre trop serree sur les spots hauts');
+  // 0,09 s au sommet : sous ce seuil un expert recentre ne tient plus (bot.mjs, 30/09)
+  if (span * kEnd < 0.09) throw new Error('fenetre trop serree sur les spots hauts');
 \""
 
 # 5. le point d entree est bien cable

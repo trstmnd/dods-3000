@@ -12,7 +12,7 @@ c'est celui que le jeu envoie (`src/platform.js`). Icône 64x64 JPG par succès,
 | STREAK_3 | Triple | Chain three GREAT or better in one run. | Triplé | Enchaîne trois GREAT ou mieux dans un run. |
 | HIGH_PERFECT | Fjord Master | Land a PERFECT DØDS from 34 m. | Maître du fjord | Réussis un PERFECT DØDS depuis 34 m. |
 | ALL_SPOTS | World Tour | Jump from all six spots. | Tour du monde | Saute depuis les six spots. |
-| RUN_5000 | Five Grand | Score 5,000 points in a single run. | Cinq mille | Marque 5 000 points en un seul run. |
-| TOTAL_20000 | Legend | Reach 20,000 points across your spot records. | Légende | Atteins 20 000 points en cumulant tes records. |
+| RUN_8000 | Eight Grand | Score 8,000 points in a single run. | Huit mille | Marque 8 000 points en un seul run. |
+| TOTAL_30000 | Legend | Reach 30,000 points across your spot records. | Légende | Atteins 30 000 points en cumulant tes records. |
 
-Les seuils 5 000 et 20 000 sont calés sur le joueur simulé (`tools/gauntlet/bot.mjs`) : un joueur régulier dépasse 5 000 sur les spots hauts, 20 000 demande des records partout.
+Les seuils sont calés sur le joueur simulé (`tools/gauntlet/bot.mjs`, v3.2) : 8 000 en un run, c'est 70 % des runs d'un expert à Lysefjord et 8 % de ceux d'un joueur régulier ; 30 000 en cumulé demande des records d'expert sur plusieurs spots.

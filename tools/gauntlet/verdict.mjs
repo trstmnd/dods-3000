@@ -38,6 +38,10 @@ else {
   gate('3', 'debutant, 1er spot : smack + chute <= 25 %', echec <= 25 ? 'PASS' : 'WARN', `${echec} %`);
   const last = r.expert[ids[ids.length - 1]];
   gate('3', 'expert, dernier spot : PERFECT <= 85 % (marge de maitrise)', last.perfect <= 85 ? 'PASS' : 'WARN', `${last.perfect} % de PERFECT`);
+  if (r.reactif) {
+    const re = r.reactif[ids[0]];
+    gate('3', 'reactif (lache apres le label PERFECT), 1er spot : smack <= 25 %', re.smack <= 25 ? 'PASS' : 'WARN', `${re.smack} %`);
+  }
   const reg = ids.map(id => r.regulier[id].perfect);
   gate('3', 'regulier : PERFECT baisse du 1er au dernier spot', reg[reg.length - 1] < reg[0] ? 'PASS' : 'WARN', reg.join(' > ') + ' %');
   const spread = ids.map(id => r.expert[id].scoreMoyen);

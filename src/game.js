@@ -67,10 +67,14 @@ const LANDING_BY_GRADE = {
 };
 
 export function windows(height) {
-  // plus le spot est haut, plus la fenetre est serree
-  const k = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(height, 10, 34, 1.0, 0.72), 0.7, 1.05);
+  // Plus le spot est haut, plus la fenetre est serree. Reglage du gauntlet du 30/09 (v3.2),
+  // mesure par tools/gauntlet/bot.mjs : fenetre PERFECT de 0,30 s a 10 m (un joueur qui
+  // attend le label PERFECT pour lacher s'ecrasait 3 fois sur 4 au premier spot) a 0,096 s a
+  // 34 m (l'expert y faisait 98 % de PERFECT, il n'avait plus rien a apprendre). Avant :
+  // 0,20 s a 0,144 s, soit k de 1 a 0,72.
+  const k = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(height, 10, 34, 1.0, 0.32), 0.32, 1.05);
   const perfectLo = 0.085;
-  const perfectHi = perfectLo + 0.20 * k;
+  const perfectHi = perfectLo + 0.30 * k;
   const greatHi = perfectHi + 0.16 * k;
   const goodHi = greatHi + 0.34 * k;
   const earlyHi = goodHi + 0.75;
