@@ -9,7 +9,7 @@ t() { if eval "$2" >/dev/null 2>&1; then echo "  OK   $1"; ok=$((ok+1)); else ec
 echo "DODS 3000 - controles"
 
 # 1. fichiers presents
-for f in index.html style.css src/main.js src/game.js src/world.js src/diver.js src/spots.js src/fx.js src/audio.js src/noise.js; do
+for f in index.html style.css src/main.js src/game.js src/world.js src/diver.js src/spots.js src/fx.js src/audio.js src/noise.js src/i18n.js; do
   t "fichier $f" "[ -f '$f' ]"
 done
 
@@ -24,7 +24,7 @@ done
 cp src/spots.js "$tmp/spots.mjs"
 t "spots complets" "node --input-type=module -e \"
   const m = await import('file://$tmp/spots.mjs');
-  const need = ['id','name','place','height','diff','platform','note','palette'];
+  const need = ['id','name','place','placeEn','height','diff','platform','note','noteEn','palette'];
   const pneed = ['sky','sun','sunPos','water','deep','rock','rock2','fog','fogDensity','ambient'];
   if (m.SPOTS.length < 4) throw new Error('trop peu de spots');
   const ids = new Set();
@@ -36,7 +36,16 @@ t "spots complets" "node --input-type=module -e \"
     if (s.height < 5 || s.height > 60) throw new Error(s.id + ' hauteur hors bornes');
     if (s.diff < 1 || s.diff > 5) throw new Error(s.id + ' difficulte hors bornes');
     if (!['board','bridge','rock','terrace'].includes(s.platform)) throw new Error(s.id + ' plateforme inconnue');
+    if (!m.DIFF_LABEL[s.diff] || !m.DIFF_LABEL_EN[s.diff]) throw new Error(s.id + ' difficulte sans libelle');
   }
+\""
+
+# 3 bis. le dictionnaire i18n : memes cles en francais et en anglais, aucune valeur vide
+t "i18n : memes cles en fr et en" "node --input-type=module -e \"
+  const m = await import('file://$tmp/i18n.mjs');
+  const f = Object.keys(m.DICT.fr).sort(), e = Object.keys(m.DICT.en).sort();
+  if (f.join() !== e.join()) throw new Error('cles differentes');
+  for (const l of ['fr','en']) for (const [k, v] of Object.entries(m.DICT[l])) if (!v) throw new Error(l + ' ' + k + ' vide');
 \""
 
 # 4. les fenetres de tuck restent jouables a toutes les hauteurs

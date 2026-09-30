@@ -20,9 +20,9 @@
 <section id="s-title" class="screen">
   <div class="title-wrap">
     <h1 class="logo">DODS<span>3000</span></h1>
-    <p class="tag">Championnat de dødsing</p>
-    <button class="btn big" data-go="spots">JOUER</button>
-    <p class="hint">Un seul doigt : appuie, tiens la planche, lâche</p>
+    <p class="tag" data-i18n="title.tag">Championnat de dødsing</p>
+    <button class="btn big" data-go="spots" data-i18n="title.play">JOUER</button>
+    <p class="hint" data-i18n="title.hint">Un seul doigt : appuie, tiens la planche, lâche</p>
     <p class="version" id="version"></p>
   </div>
 </section>
@@ -30,9 +30,9 @@
 <!-- SELECTION DE SPOT -->
 <section id="s-spots" class="screen">
   <header class="bar">
-    <button class="btn ghost" data-go="title" aria-label="Retour au titre">&lt;</button>
-    <h2>CHOISIS TON SPOT</h2>
-    <div class="total">TOTAL <b id="total-score">0</b></div>
+    <button class="btn ghost" data-go="title" aria-label="Retour au titre" data-i18n-aria="nav.title">&lt;</button>
+    <h2 data-i18n="spots.heading">CHOISIS TON SPOT</h2>
+    <div class="total"><span data-i18n="spots.total">TOTAL</span> <b id="total-score">0</b></div>
   </header>
   <div id="spot-list"></div>
 </section>
@@ -45,20 +45,20 @@
       <p id="brief-place"></p>
     </div>
     <div class="stats">
-      <div><span id="brief-height"></span><small>hauteur</small></div>
-      <div><span id="brief-diff"></span><small>difficulté</small></div>
-      <div><span id="brief-best"></span><small>record</small></div>
+      <div><span id="brief-height"></span><small data-i18n="brief.height">hauteur</small></div>
+      <div><span id="brief-diff"></span><small data-i18n="brief.diff">difficulté</small></div>
+      <div><span id="brief-best"></span><small data-i18n="brief.best">record</small></div>
     </div>
     <p id="brief-note" class="note"></p>
-    <ol class="gesture" aria-label="Le geste">
-      <li><i class="g1"></i><b>APPUIE</b><small>au bord</small></li>
-      <li><i class="g2"></i><b>TIENS</b><small>à plat, en døds</small></li>
-      <li><i class="g3"></i><b>LÂCHE</b><small>juste avant l'eau</small></li>
+    <ol class="gesture" aria-label="Le geste" data-i18n-aria="brief.gesture">
+      <li><i class="g1"></i><b data-i18n="brief.press">APPUIE</b><small data-i18n="brief.press.sub">au bord</small></li>
+      <li><i class="g2"></i><b data-i18n="brief.hold">TIENS</b><small data-i18n="brief.hold.sub">à plat, en døds</small></li>
+      <li><i class="g3"></i><b data-i18n="brief.release">LÂCHE</b><small data-i18n="brief.release.sub">juste avant l'eau</small></li>
     </ol>
     <p class="wind-line" id="brief-wind"></p>
     <div class="row">
-      <button class="btn ghost" data-go="spots">Retour</button>
-      <button class="btn big" data-go="run">3 SAUTS, GO</button>
+      <button class="btn ghost" data-go="spots" data-i18n="brief.back">Retour</button>
+      <button class="btn big" data-go="run" data-i18n="brief.go">3 SAUTS, GO</button>
     </div>
   </div>
 </section>
@@ -66,14 +66,14 @@
 <!-- HUD EN JEU -->
 <section id="s-run" class="screen hud">
   <div class="hud-top">
-    <div class="hud-cell"><small>SAUT</small><b id="hud-jump">1/3</b></div>
+    <div class="hud-cell"><small data-i18n="hud.jump">SAUT</small><b id="hud-jump">1/3</b></div>
     <div class="hud-cell center"><small id="hud-spot"></small><b id="hud-score">0</b><small id="hud-streak"></small></div>
-    <div class="hud-cell right"><small>ALTITUDE</small><b id="hud-alt">0 m</b></div>
+    <div class="hud-cell right"><small data-i18n="hud.alt">ALTITUDE</small><b id="hud-alt">0 m</b></div>
   </div>
 
   <div id="runbar"><div id="runbar-fill"></div><div id="runbar-zone"></div></div>
 
-  <div id="level" aria-hidden="true"><span class="lv-zone"></span><i id="level-bubble"></i><small id="level-label">PLANCHE</small></div>
+  <div id="level" aria-hidden="true"><span class="lv-zone"></span><i id="level-bubble"></i><small id="level-label" data-i18n="level.plank">PLANCHE</small></div>
 
   <div id="tuckring">
     <svg viewBox="0 0 120 120">
@@ -86,9 +86,9 @@
 
   <div id="pause">
     <div class="card pause-card">
-      <h2>EN PAUSE</h2>
-      <p id="pause-text">L'onglet est passé en arrière plan. Le saut reprend où il s'est arrêté.</p>
-      <div class="hold-target" id="pause-resume" role="button" tabindex="0">REPRENDRE</div>
+      <h2 data-i18n="pause.title">EN PAUSE</h2>
+      <p id="pause-text" data-i18n="pause.idle">L'onglet est passé en arrière plan. Le saut reprend où il s'est arrêté.</p>
+      <div class="hold-target" id="pause-resume" role="button" tabindex="0" data-i18n="pause.resume">REPRENDRE</div>
     </div>
   </div>
 
@@ -114,11 +114,11 @@
         </span>
         <span class="g-mark"></span>
       </div>
-      <div class="g-ends"><span>trop tôt</span><span>eau</span></div>
+      <div class="g-ends"><span data-i18n="gauge.early">trop tôt</span><span data-i18n="gauge.water">eau</span></div>
     </div>
     <ul class="breakdown" id="jr-lines"></ul>
-    <button class="btn big" id="jr-next">SUITE</button>
-    <p class="tap-hint">ou tape n'importe où</p>
+    <button class="btn big" id="jr-next" data-i18n="result.next">SUITE</button>
+    <p class="tap-hint" data-i18n="result.tap">ou tape n'importe où</p>
   </div>
 </section>
 
@@ -130,8 +130,8 @@
     <div class="final" id="end-score">0</div>
     <p id="end-best" class="note"></p>
     <div class="row">
-      <button class="btn ghost" data-go="spots">Spots</button>
-      <button class="btn big" data-go="run">REJOUER</button>
+      <button class="btn ghost" data-go="spots" data-i18n="end.spots">Spots</button>
+      <button class="btn big" data-go="run" data-i18n="end.again">REJOUER</button>
     </div>
   </div>
 </section>
@@ -142,10 +142,13 @@
     <path class="wave" d="M15.6 9.1a4.2 4.2 0 0 1 0 5.8M18.3 6.6a7.8 7.8 0 0 1 0 10.8"/>
     <path class="slash" d="M16.2 9.6l5.4 4.8M21.6 9.6l-5.4 4.8"/>
   </svg>
-  <span class="sr">Son</span>
+  <span class="sr" data-i18n="sound.label">Son</span>
 </button>
 
-<div id="loading">chargement…</div>
+<!-- Langue : visible sur l'ecran titre seulement (style.css), car changer de langue recharge la page. -->
+<button id="lang" class="btn ghost icon" type="button" data-i18n="lang.switch" data-i18n-aria="lang.aria" data-i18n-title="lang.aria" aria-label="English" title="English">EN</button>
+
+<div id="loading" data-i18n="loading">chargement…</div>
 
 <!-- integrity : le navigateur refuse three si le CDN sert autre chose que ces octets exacts.
      Hash calcule sur le tarball npm officiel de three 0.170.0. jsdelivr sert le fichier npm tel
@@ -159,6 +162,7 @@
   }
 }
 </script>
+<script type="module" src="src/i18n.js"></script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -29,6 +29,13 @@ mkdir -p vendor && cp node_modules/three/build/three.module.min.js vendor/
 Le fichier copié doit porter le nom exact que l'importmap réclame (`three.module.min.js` depuis la v2.0) : le hash d'integrity doit correspondre octet pour octet. `run.sh` réécrit alors l'importmap vers cette copie. Sans ce fichier, la page
 est servie telle quelle et va chercher Three.js sur jsDelivr.
 
+## La langue
+
+Le jeu suit la langue du navigateur (puis `?lang=en|fr`, puis `localStorage`). Un Chrome système en
+français lance donc les scénarios en français, et un conteneur en anglais. Pour forcer une langue :
+`open({ lang: 'en-US' })` dans `_page.mjs`, ou `?lang=en` dans l'URL. Aucun scénario ne compare un
+libellé : ils lisent `key` et `id`, jamais un texte traduit.
+
 ## Les scénarios
 
 | Script | Ce qu'il répond |

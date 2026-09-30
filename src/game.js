@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createDiver, applyPose, runPose, POSES, LANDINGS } from './diver.js';
 import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
 import { mulberry32, seedFromString } from './noise.js';
+import { t } from './i18n.js';
 
 export const TUNING = {
   gravity: 13.5,
@@ -10,11 +11,11 @@ export const TUNING = {
   takeoff: [
     // drift : le couple qui fait piquer la planche du nez au depart. Un bon appel
     // part droit, un appel rate part en rotation et oblige a se redresser.
-    { max: 1.15, label: 'DÉCOLLAGE PARFAIT', mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
-    { max: 2.6, label: 'BON DÉCOLLAGE', mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
-    { max: 99, label: 'TROP TÔT', mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
+    { max: 1.15, label: t('takeoff.perfect'), mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
+    { max: 2.6, label: t('takeoff.good'), mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
+    { max: 99, label: t('takeoff.early'), mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
   ],
-  noJump: { label: 'PAS DE DÉCOLLAGE', mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
+  noJump: { label: t('takeoff.none'), mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
   // La planche (v3) : l'ecart d'inclinaison du corps a l'horizontale ideale, en radians.
   // Le doigt commande une inclinaison, le corps la suit avec un peu de retard, le vent et
   // l'elan le poussent. Integree a pas fixe : le meme saut a toutes les frequences.
@@ -26,15 +27,15 @@ export const TUNING = {
     { key: 'good', label: 'GOOD', short: 'GOOD', mult: 1.35, color: '#4fd6ff' },
     { key: 'early', label: 'EARLY', short: 'EARLY', mult: 0.7, color: '#b9c6d4' },
     { key: 'chicken', label: 'CHICKEN', short: 'CHICKEN', mult: 0.3, color: '#b9c6d4' },
-    { key: 'smack', label: 'SMACK', short: 'TROP TARD', mult: 0, color: '#ff4d5e' }
+    { key: 'smack', label: 'SMACK', short: t('grade.smack.short'), mult: 0, color: '#ff4d5e' }
   ],
   styleRate: 46,
   baseRate: 12,
   // Serie : deux GREAT ou mieux d'affilee, puis trois. Le troisieme saut devient un choix
   // entre assurer et tenter, la ou trois sauts independants ne faisaient qu'une addition.
   streak: [
-    { min: 2, mult: 1.2, label: 'SÉRIE x2' },
-    { min: 3, mult: 1.5, label: 'SÉRIE x3' }
+    { min: 2, mult: 1.2, label: t('streak.x2') },
+    { min: 3, mult: 1.5, label: t('streak.x3') }
   ],
   streakFrom: 2.0
 };
@@ -45,11 +46,12 @@ export const GRADE = Object.fromEntries(TUNING.grades.map(g => [g.key, g]));
 // est arrondi au centieme : le chiffre affiche est celui qui compte.
 const r2 = v => Math.round(v * 100) / 100;
 export function plancheAt(mean) {
-  if (mean <= 0.07) return { key: 'parfaite', label: 'PLANCHE PARFAITE', mult: 1.15, mean };
-  if (mean <= 0.21) return { key: 'tenue', label: 'PLANCHE TENUE', mult: r2(1.15 - (mean - 0.07) / 0.14 * 0.15), mean };
-  return { key: 'bancale', label: 'PLANCHE BANCALE', mult: r2(Math.max(0.6, 1 - (mean - 0.21) / 0.6 * 0.4)), mean };
+  // `key` reste en francais : le CSS (data-planche) et les tests le lisent. `label` et `short` sont traduits.
+  if (mean <= 0.07) return { key: 'parfaite', label: t('planche.perfect'), short: t('planche.short.perfect'), mult: 1.15, mean };
+  if (mean <= 0.21) return { key: 'tenue', label: t('planche.steady'), short: t('planche.short.steady'), mult: r2(1.15 - (mean - 0.07) / 0.14 * 0.15), mean };
+  return { key: 'bancale', label: t('planche.wobbly'), short: t('planche.short.wobbly'), mult: r2(Math.max(0.6, 1 - (mean - 0.21) / 0.6 * 0.4)), mean };
 }
-const NO_PLANCHE = { key: 'aucune', label: 'SANS PLANCHE', mult: 1, mean: 0 };
+const NO_PLANCHE = { key: 'aucune', label: t('planche.none'), mult: 1, mean: 0 };
 
 // Un saut compte pour la serie quand son multiplicateur de timing vaut au moins GREAT.
 export function keepsStreak(grade) { return !!grade && grade.mult >= TUNING.streakFrom; }

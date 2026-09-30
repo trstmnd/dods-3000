@@ -26,6 +26,7 @@ dans `preview/<branche>` sur `gh-pages`.
 | `src/spots.js` | les 6 spots : hauteur, difficulte, palette, plateforme | ajout ou reglage d'un spot |
 | `src/fx.js` | gerbe, gouttes, anneau de surface | impact |
 | `src/audio.js` | sons synthetises | son |
+| `src/i18n.js` | anglais et francais : `DICT`, `t()`, `loc()`, `setLang()`, `applyStatic()` | un texte visible par le joueur, une langue de plus |
 | `src/noise.js` | bruit et PRNG deterministes | ne pas toucher sans raison : la falaise doit rester identique d'une partie a l'autre |
 
 Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
@@ -86,6 +87,12 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
    `plancheStep()` : sans pilote, le meme saut donne la meme planche a 30, 60 et
    144 Hz. Les rafales sont fixees par `reset(n)` (spot + numero du saut) : ne pas
    les tirer au hasard a chaque image, les scores ne seraient plus comparables.
+17. **Tout texte visible passe par `src/i18n.js`** : `data-i18n` dans `index.html`, `t('cle')` dans
+   les modules, `loc(spot, 'note')` pour un spot (champs `place`/`note` en francais et `placeEn`/`noteEn`
+   en anglais, car `spots.js` s'importe seul dans `check.sh`). Une cle existe dans `DICT.fr` ET `DICT.en`
+   (`check.sh` le mesure). `cle.touch` et `cle.desk` se resolvent seules selon `(pointer: coarse)`. On ne
+   traduit jamais ce que les tests lisent : `key` des notes et de la planche, `id` des spots. La langue ne
+   change qu'au rechargement (`setLang`), donc `t()` peut etre appele a l'import (`TUNING`, `LANDINGS`).
 
 ## Ou regarder avant de commencer
 
@@ -97,7 +104,7 @@ Constantes de reglage : `TUNING` et `windows()` dans `src/game.js`,
 ## Boucle de travail
 
 ```bash
-./check.sh                  # 39 controles deterministes, ni reseau ni navigateur
+./check.sh                  # 42 controles deterministes, ni reseau ni navigateur
 python3 -m http.server 8012 # puis http://localhost:8012/?cb=<n>
 ./tools/run.sh timing.mjs   # les quatre cas de fermeture et la mise, dans un vrai navigateur
 ./tools/run.sh geste.mjs    # clavier, souris, deux doigts, perte de focus, lacher perdu

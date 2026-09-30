@@ -5,3 +5,6 @@ tools/.site
 tools/vendor
 tools/*.png
 tools/package*.json
+tools/gauntlet/.hearth
+tools/gauntlet/out
+tools/.site-probe

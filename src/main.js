@@ -1,15 +1,23 @@
 import * as THREE from 'three';
-import { SPOTS, DIFF_LABEL } from './spots.js';
+import { SPOTS, DIFF_LABEL, DIFF_LABEL_EN } from './spots.js';
+import { LANG, TOUCH, t, loc, setLang, applyStatic } from './i18n.js';
 import { buildWorld } from './world.js';
 import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 
 const $ = s => document.querySelector(s);
+// Les textes fixes de index.html passent dans la langue choisie avant toute autre ecriture du DOM.
+applyStatic();
 export const VERSION = 'v3.0';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
+const DIFF = LANG === 'en' ? DIFF_LABEL_EN : DIFF_LABEL;
+// Les consignes de planche selon le pointeur : glisser le doigt, ou fleches et stick sur PC.
+// Un clavier utilise sur un ecran tactile prend la consigne PC. Resolues une fois, la boucle
+// chaude ne fait que choisir.
+const STEER = ['touch', 'desk'].map(d => ({ up: t('steer.up.' + d), down: t('steer.down.' + d), learn: t('steer.learn.' + d) }));
 
 /* ---------- DOM ---------- */
 // Tout ce que la boucle touche est lu une fois ici. Un querySelector par element et par
@@ -18,7 +26,7 @@ const STORE = 'dods3000.v1';
 const E = {};
 for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
   'tuckring', 'tr-grade', 'tr-streak', 'pot', 'level', 'level-bubble', 'level-label', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
-  'pause-resume', 'loading', 'sound', 'version'])
+  'pause-resume', 'loading', 'sound', 'lang', 'version'])
   E[id] = document.getElementById(id);
 const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
 
@@ -87,7 +95,7 @@ function setMuted(v) {
   const b = E.sound;
   b.classList.toggle('muted', save.muted);
   b.setAttribute('aria-pressed', save.muted ? 'true' : 'false');
-  b.title = save.muted ? 'Rétablir le son' : 'Couper le son';
+  b.title = save.muted ? t('sound.unmute') : t('sound.mute');
 }
 E.sound.addEventListener('click', () => {
   const next = !save.muted;
@@ -95,6 +103,8 @@ E.sound.addEventListener('click', () => {
   if (!next) { audio.unlock(); audio.ui(); }
 });
 setMuted(!!save.muted);
+// Changer de langue recharge la page : le bouton n'existe que sur l'ecran titre (style.css).
+E.lang.addEventListener('click', () => setLang(LANG === 'fr' ? 'en' : 'fr'));
 
 /* ---------- ecrans ---------- */
 const screens = ['title', 'spots', 'brief', 'run', 'jump', 'end'];
@@ -126,15 +136,15 @@ function buildSpotList() {
     el.type = 'button';
     const best = save.best[s.id] || 0;
     el.setAttribute('aria-label',
-      `${s.name}, ${s.place}, ${s.height} mètres, difficulté ${DIFF_LABEL[s.diff]}, record ${best}`);
+      t('spot.aria', { name: s.name, place: loc(s, 'place'), height: s.height, diff: DIFF[s.diff], best }));
     el.innerHTML = `
       <span class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></span>
       <span class="name">${s.name}</span>
-      <span class="place">${s.place}</span>
+      <span class="place">${loc(s, 'place')}</span>
       <span class="meta" aria-hidden="true">
         <span><b>${s.height} m</b></span>
         <span class="diff">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
-        <span>RECORD <b>${best}</b></span>
+        <span>${t('spots.best')} <b>${best}</b></span>
       </span>`;
     el.onclick = () => { audio.ui(); openBrief(s); };
     list.appendChild(el);
@@ -159,14 +169,15 @@ $('#spot-list').addEventListener('keydown', e => {
 function openBrief(spot) {
   state.spot = spot;
   $('#brief-name').textContent = spot.name;
-  $('#brief-place').textContent = spot.place;
+  $('#brief-place').textContent = loc(spot, 'place');
   $('#brief-height').textContent = spot.height + ' m';
-  $('#brief-diff').textContent = DIFF_LABEL[spot.diff];
+  $('#brief-diff').textContent = DIFF[spot.diff];
   $('#brief-best').textContent = save.best[spot.id] || 0;
-  $('#brief-note').textContent = spot.note;
+  $('#brief-note').textContent = loc(spot, 'note');
   // Le vent dit ce que la planche va demander : rien a Frognerbadet, beaucoup au Lysefjord.
   const w = spot.wind || 0;
-  $('#brief-wind').textContent = w === 0 ? 'à l\'abri du vent' : w < 0.45 ? 'vent léger : glisse pour rester à plat' : w < 0.7 ? 'vent : glisse pour rester à plat' : 'vent fort : glisse pour rester à plat';
+  const tip = t('steer.tip');
+  $('#brief-wind').textContent = w === 0 ? t('wind.none') : w < 0.45 ? t('wind.light', { tip }) : w < 0.7 ? t('wind.mid', { tip }) : t('wind.strong', { tip });
   show('brief');
   // Le decor du spot choisi s'installe derriere la fiche, pendant qu'on la lit : la
   // construction et la compilation des shaders sont payees ici, pas au moment de sauter.
@@ -246,22 +257,22 @@ function nextJump() {
   // la zone de bon decollage : les 2,6 derniers metres des 9,5 de la piste
   setStyle(E['runbar-zone'], 'left', ((1 - 2.6 / 9.5) * 100).toFixed(1) + '%');
   setStyle(E['runbar-zone'], 'width', ((2.6 / 9.5) * 100).toFixed(1) + '%');
-  setPrompt(save.jumps ? 'APPUIE AU BORD, ET TIENS' : 'APPUIE AU BORD… ET GARDE LE DOIGT', true);
+  setPrompt(save.jumps ? t('prompt.edge') : t('prompt.edge.first'), true);
 }
 
 /* ---------- lecture du timing ---------- */
 // GOOD ou EARLY ne dit pas si on a manque de 30 ms ou de 300. L'ecart au parfait et
 // la jauge situent la fermeture dans la fenetre : c'est ce qui rend le geste apprenable.
-const sec = v => v.toFixed(2).replace('.', ',');
+const sec = v => LANG === 'fr' ? v.toFixed(2).replace('.', ',') : v.toFixed(2);
 
 function timingText(res) {
   const w = res.win;
-  if (!res.tucked) return 'jamais lâché';
+  if (!res.tucked) return t('timing.never');
   // Lacher dans la foulee du decollage : le premier reflexe de qui tape au lieu de tenir.
-  if (res.air < 0.3 && !res.dead) return 'lâché tout de suite : garde le doigt pour rester en døds';
-  if (res.ttc < w.perfectLo) return sec(w.perfectLo - res.ttc) + ' s trop tard';
-  if (res.ttc <= w.perfectHi) return 'au cœur de la fenêtre';
-  return sec(res.ttc - w.perfectHi) + ' s trop tôt';
+  if (res.air < 0.3 && !res.dead) return t('timing.tooSoon');
+  if (res.ttc < w.perfectLo) return t('timing.late', { s: sec(w.perfectLo - res.ttc) });
+  if (res.ttc <= w.perfectHi) return t('timing.center');
+  return t('timing.early', { s: sec(res.ttc - w.perfectHi) });
 }
 
 // L'axe va de la fermeture la plus precoce, a gauche, a l'entree dans l'eau, a droite.
@@ -288,7 +299,7 @@ function drawGauge(res) {
 function showStreak() {
   const b = streakBonus(state.streak);
   const el = E['hud-streak'];
-  setText(el, b ? b.label : (state.streak === 1 ? 'SÉRIE x1' : ''));
+  setText(el, b ? b.label : (state.streak === 1 ? t('streak.x1') : ''));
   setClass(el, 'on', !!b);
   setClass(el, 'dim', !b && state.streak === 1);
 }
@@ -304,29 +315,29 @@ function onJumpDone(res) {
   state.runScore += gained;
   showStreak();
   if (bonus) callout(bonus.label, '#5ef0a8');
-  else if (broken) toast('SÉRIE PERDUE');
+  else if (broken) toast(t('toast.streakLost'));
   setText(E['hud-score'], String(state.runScore));
   audio.grade(res.dead ? 0 : res.grade.mult);
   $('#jr-grade').textContent = res.grade.label;
   $('#jr-grade').style.color = res.grade.color;
   $('#jr-sub').textContent = res.dead
-    ? 'À plat. Le run s\'arrête là.'
-    : `${res.takeoff.label} · ${res.air.toFixed(2)} s en l\'air`;
+    ? t('result.flat')
+    : t('result.air', { label: res.takeoff.label, air: res.air.toFixed(2) });
   $('#jr-timing').textContent = timingText(res);
   $('#jr-timing').style.color = res.grade.color;
   // nommer la forme d'entree : c'est le vocabulaire du dodsing, et ca s'apprend en jouant
   $('#jr-landing').innerHTML = `<b>${res.landing.label}</b> · ${res.landing.note}`;
   drawGauge(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
-    <li><span>Base ${res.height} m</span><b>${res.base}</b></li>
-    <li><span>Style, ${res.air.toFixed(2)} s en døds</span><b>+${res.style}</b></li>
-    <li><span>Timing ${res.grade.label}</span><b>x${res.grade.mult}</b></li>
+    <li><span>${t('line.base', { h: res.height })}</span><b>${res.base}</b></li>
+    <li><span>${t('line.style', { air: res.air.toFixed(2) })}</span><b>+${res.style}</b></li>
+    <li><span>${t('line.timing', { grade: res.grade.label })}</span><b>x${res.grade.mult}</b></li>
     <li><span>${res.takeoff.label}</span><b>x${res.takeoff.mult}</b></li>
-    ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${res.planche.label}, ${Math.round(res.planche.mean * 57.3)}° d'écart</span><b>x${res.planche.mult}</b></li>` : ''}
+    ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${t('line.plank', { label: res.planche.label, deg: Math.round(res.planche.mean * 57.3) })}</span><b>x${res.planche.mult}</b></li>` : ''}
     ${bonus ? `<li><span>${bonus.label}</span><b>x${bonus.mult}</b></li>` : ''}
-    <li class="total"><span>Saut ${state.jumpIndex}</span><b>${gained}</b></li>`;
+    <li class="total"><span>${t('line.jump', { n: state.jumpIndex })}</span><b>${gained}</b></li>`;
   const finished = res.dead || state.jumpIndex >= JUMPS_PER_RUN;
-  $('#jr-next').textContent = finished ? 'BILAN' : 'SAUT SUIVANT';
+  $('#jr-next').textContent = finished ? t('result.next.end') : t('result.next.jump');
   $('#jr-next').onclick = () => { audio.ui(); advance(); };
   persist();
   show('run', 'jump');
@@ -344,10 +355,10 @@ function endRun(dead) {
   const best = save.best[state.spot.id] || 0;
   const record = state.runScore > best;
   if (record) { save.best[state.spot.id] = state.runScore; persist(); }
-  $('#end-title').textContent = dead ? 'RUN TERMINÉ' : 'TROIS SAUTS DANS LA BOÎTE';
+  $('#end-title').textContent = dead ? t('end.over') : t('end.done');
   $('#end-sub').textContent = state.spot.name + ' · ' + state.spot.height + ' m';
   $('#end-score').textContent = state.runScore;
-  $('#end-best').textContent = record ? 'NOUVEAU RECORD SUR CE SPOT' : `Record du spot : ${best}`;
+  $('#end-best').textContent = record ? t('end.record') : t('end.best', { best });
   show('run', 'end');
   buildSpotList();
 }
@@ -406,7 +417,7 @@ function updateHud(dt) {
       setText(E.pot, g.key === 'smack' ? '0' : '+' + (bonus ? Math.round(h.pot.score * bonus.mult) : h.pot.score));
       // meme regle que le HUD apres coup : SERIE x1 des le premier saut qui la lance
       const next = keepsStreak(g) ? state.streak + 1 : 0;
-      setText(E['tr-streak'], bonus ? bonus.label : (next === 1 ? 'SÉRIE x1' : ''));
+      setText(E['tr-streak'], bonus ? bonus.label : (next === 1 ? t('streak.x1') : ''));
       const level = GRADE_LEVEL[g.key];
       if (level !== lastLevel) { if (lastLevel >= 0 && level < 5) audio.tick(level); lastLevel = level; }
       // Le texte ne donne jamais le top : l'oeil reagit trop tard, c'est l'eau qui monte,
@@ -420,18 +431,18 @@ function updateHud(dt) {
       // on la remonte en remontant le doigt.
       setStyle(E['level-bubble'], 'transform', `translateY(${(Math.max(-1, Math.min(1, tilt / 0.7)) * 62).toFixed(1)}px)`);
       setAttr(E.level, 'data-planche', planche.key);
-      setText(E['level-label'], planche.key === 'aucune' ? 'PLANCHE' : `${planche.label.replace('PLANCHE ', '')} x${planche.mult}`);
-      const keys = lastInput === 'key';
+      setText(E['level-label'], planche.key === 'aucune' ? t('level.plank') : `${planche.short} x${planche.mult}`);
+      const ST = STEER[!TOUCH || lastInput === 'key' ? 1 : 0];
       // Sur un spot venteux, les premiers sauts disent le geste des le debut du vol ; ensuite
       // le texte ne sort que quand la planche part vraiment, avec le sens a donner.
       const windy = (jump.spot.wind || 0) > 0;
       const learning = windy && (save.jumps || 0) < 8 && h.held && jump.t < 0.7;
       const steerHint = h.held && !h.flailing && Math.abs(tilt) > 0.15
-        ? (tilt > 0 ? (keys ? '↑ POUR REDRESSER' : 'GLISSE ↑ POUR REDRESSER') : (keys ? '↓ POUR REDRESSER' : 'GLISSE ↓ POUR REDRESSER'))
-        : learning ? (keys ? '↑ ↓ POUR RESTER À PLAT' : 'GLISSE ↑ ↓ POUR RESTER À PLAT') : null;
-      setPrompt(h.flailing && !h.held ? 'APPUIE, PUIS LÂCHE AVANT L\'EAU'
-        : !h.held ? 'APPUIE ET TIENS' : steerHint || 'TIENS… LÂCHE JUSTE AVANT L\'EAU', h.hot && h.held && !steerHint);
-      if (h.gust > 0.35 && !gustShown) { gustShown = true; toast('RAFALE'); }
+        ? (tilt > 0 ? ST.up : ST.down)
+        : learning ? ST.learn : null;
+      setPrompt(h.flailing && !h.held ? t('prompt.flail')
+        : !h.held ? t('prompt.press') : steerHint || t('prompt.hold'), h.hot && h.held && !steerHint);
+      if (h.gust > 0.35 && !gustShown) { gustShown = true; toast(t('toast.gust')); }
       // Le son monte avec le temps qui reste, le coeur accelere : on anticipe a l'oreille.
       const v = Math.max(0, Math.min(1, 1 - h.ttc / 1.9));
       audio.setTension(h.held ? v : 0);
@@ -501,10 +512,8 @@ function setPause(v) {
     // reappuyer pour reprendre la main. Reprendre sur un lacher fermerait le saut.
     const holding = jump && jump.state === 'fly' && !jump.tucked;
     if (holding) jump.held = false;
-    setText(E['pause-text'], holding
-      ? 'Tu es en plein vol. Appuie et tiens pour reprendre, puis lâche avant l\'eau.'
-      : 'L\'onglet est passé en arrière plan. Le saut reprend où il s\'est arrêté.');
-    setText(E['pause-resume'], holding ? 'APPUIE ET TIENS' : 'REPRENDRE');
+    setText(E['pause-text'], holding ? t('pause.flying') : t('pause.idle'));
+    setText(E['pause-resume'], holding ? t('prompt.press') : t('pause.resume'));
   }
   setClass(E.pause, 'on', v);
 }

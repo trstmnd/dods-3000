@@ -1,0 +1,25 @@
+{
+  "name": "dods-3000",
+  "productName": "DODS 3000",
+  "version": "3.2.0",
+  "description": "DODS 3000, dødsing championship. One gesture: press, hold the plank, release.",
+  "main": "main.cjs",
+  "private": true,
+  "author": "Tristan Monod",
+  "license": "UNLICENSED",
+  "scripts": {
+    "stage": "node build.mjs stage",
+    "start": "node build.mjs stage && electron .",
+    "pack": "node build.mjs pack",
+    "smoke": "node build.mjs stage && node smoke.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.5.1",
+    "playwright-core": "1.63",
+    "three": "^0.170.0"
+  },
+  "optionalDependencies": {
+    "steamworks.js": "0.4.0"
+  }
+}

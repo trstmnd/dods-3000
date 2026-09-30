@@ -33,9 +33,12 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
   .overlay.on .card{animation:none}
 }
 
-#sound{position:fixed;z-index:30;left:var(--pad);bottom:calc(var(--pad) + env(safe-area-inset-bottom));
+#sound,#lang{position:fixed;z-index:30;left:var(--pad);bottom:calc(var(--pad) + env(safe-area-inset-bottom));
   width:44px;height:44px;padding:0;display:grid;place-items:center;opacity:.55;transition:opacity .15s ease}
-#sound:hover{opacity:.95}
+#sound:hover,#lang:hover{opacity:.95}
+/* Langue : a droite du son, et seulement sur l'ecran titre, parce que changer de langue recharge la page. */
+#lang{left:calc(var(--pad) + 44px + 10px);display:none;font-size:12px}
+#s-title.on ~ #lang{display:grid}
 #sound svg{width:22px;height:22px}
 #sound .horn{fill:currentColor}
 #sound .wave,#sound .slash{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round}

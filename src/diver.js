@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { t } from './i18n.js';
 
 // Le plongeur est un vrai personnage : une peau continue et lissee, deformee par un
 // squelette, et non plus un assemblage de capsules qui se croisent aux articulations.
@@ -342,11 +343,11 @@ export const POSES = {
 // du corps a l'entree : c'est elle qui decide de ce qui touche l'eau en premier.
 // Source : criteres de jugement de la Dods Diving League.
 export const LANDINGS = {
-  shrimp: { pose: 'shrimp', pitch: 1.95, label: 'CREVETTE', note: 'mains et pieds ensemble' },
-  bullet: { pose: 'bullet', pitch: 2.15, label: 'BALLE', note: 'genoux et coudes ensemble' },
-  nohands: { pose: 'nohands', pitch: 2.05, label: 'SANS LES MAINS', note: 'genoux et tête ensemble' },
-  ball: { pose: 'ball', pitch: 2.3, label: 'BOULE', note: 'refermé trop tôt, aucune forme' },
-  flat: { pose: 'flail', pitch: 1.52, label: 'À PLAT', note: 'le ventre a tout pris' }
+  shrimp: { pose: 'shrimp', pitch: 1.95, label: t('landing.shrimp.label'), note: t('landing.shrimp.note') },
+  bullet: { pose: 'bullet', pitch: 2.15, label: t('landing.bullet.label'), note: t('landing.bullet.note') },
+  nohands: { pose: 'nohands', pitch: 2.05, label: t('landing.nohands.label'), note: t('landing.nohands.note') },
+  ball: { pose: 'ball', pitch: 2.3, label: t('landing.ball.label'), note: t('landing.ball.note') },
+  flat: { pose: 'flail', pitch: 1.52, label: t('landing.flat.label'), note: t('landing.flat.note') }
 };
 
 const TMP = new THREE.Euler();
