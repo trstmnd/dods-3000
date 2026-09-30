@@ -50,6 +50,9 @@ for (const name of WANT) {
       if (fn === 'vol') { d.tick(30); return; }
       if (fn === 'avant-eau') { d.autoTuck = null; until(() => j.ttc < 0.32); return; }
       until(() => j.state === 'impact');
+      // les pastilles s'effacent en temps reel (animation CSS), pas au rythme des ticks :
+      // sans ca la capture de l'impact garde une pastille de vol
+      document.querySelector('#toast').classList.remove('pop');
       if (fn === 'gerbe') { d.tick(10); return; }
       until(() => document.querySelector('#s-jump').classList.contains('on'));
     }, [spotIx, fn]);
