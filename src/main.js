@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SPOTS, DIFF_LABEL, DIFF_LABEL_EN } from './spots.js';
 import { LANG, TOUCH, t, loc, setLang, applyStatic } from './i18n.js';
 import { buildWorld } from './world.js';
@@ -47,6 +51,25 @@ renderer.toneMappingExposure = 1.12;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 1600);
+
+// Post-traitement. Le rendu part dans une cible lineaire et l'OutputPass applique le
+// tone mapping en toute fin : rendre l'ecran apres le bloom y passait une seconde fois
+// (image terne ou crassee). La cible est en demi-flottant avec echantillonnage
+// multicanaux : sans lui, le halo faisait scintiller les aretes des roches.
+// Le seuil haut ne laisse flotter que les vraies hautes lumieres : le soleil sur
+// l'eau, l'ecume de la gerbe, le couchant. Le reste reste net.
+const composer = new EffectComposer(renderer,
+  new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+const renderPass = new RenderPass(new THREE.Scene(), camera);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.55, 0.9);
+composer.addPass(renderPass);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+function renderScene() {
+  if (!world) return;
+  renderPass.scene = world.scene;
+  composer.render();
+}
 let world = null, jump = null, splash = null;
 let state = { spot: SPOTS[0], jumpIndex: 0, runScore: 0, last: null, streak: 0 };
 const save = loadSave();
@@ -67,7 +90,7 @@ function totalScore() { return Object.values(save.best).reduce((a, b) => a + b, 
 const PR_MAX = Math.min(window.devicePixelRatio || 1, Math.min(window.innerWidth, window.innerHeight) < 700 ? 1.5 : 2);
 const PR_MIN = Math.min(PR_MAX, 0.85);
 const quality = { pr: PR_MAX, ema: 1 / 60, bad: 0, mode: 'watch', probeT: 0, before: 0, on: true };
-function setPR(pr) { quality.pr = pr; renderer.setPixelRatio(pr); resize(); }
+function setPR(pr) { quality.pr = pr; renderer.setPixelRatio(pr); composer.setPixelRatio(pr); resize(); }
 function adapt(real) {
   if (!quality.on || quality.mode === 'off' || real <= 0 || real > 0.2) return;
   quality.ema += (real - quality.ema) * 0.06;
@@ -214,7 +237,7 @@ function useWorld(spot) {
   // compile tout, ombres comprises.
   const hidden = [];
   world.scene.traverse(o => { if (!o.visible) { hidden.push(o); o.visible = true; } });
-  try { renderer.compile(world.scene, camera); renderer.render(world.scene, camera); } catch { }
+  try { renderer.compile(world.scene, camera); renderScene(); } catch { }
   for (const o of hidden) o.visible = false;
   // Un nouveau decor n'a pas le meme cout : la resolution adaptative reprend sa veille.
   if (quality.mode === 'off') { quality.mode = 'watch'; quality.bad = 0; }
@@ -796,7 +819,7 @@ window.__dods = {
   show, startRun, openBrief, quality, spots: SPOTS,
   autoJump: null, autoTuck: null, autoSteer: false, paused: false, slowmo: true, render: true,
   // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
-  draw: () => { if (world) renderer.render(world.scene, camera); },
+  draw: () => renderScene(),
   pad, advance, menuBack, focusDefault
 };
 
@@ -804,6 +827,7 @@ window.__dods = {
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
+  composer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   // L'interface est dessinee pour un telephone (420 x 820). Sur un ecran de PC, de Steam
@@ -886,7 +910,7 @@ function frame(dt) {
   view.fov = camera.fov;
   view.height = renderer.domElement.height;
   if (splash) splash.update(dt, view);
-  if (window.__dods.render) renderer.render(world.scene, camera);
+  if (window.__dods.render) renderScene();
   hudFlash();
 }
 
