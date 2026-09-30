@@ -9,7 +9,7 @@ import * as THREE from 'three';
 // v1 dessinait des sprites ronds tous de la meme taille et un cone lisse : de pres, ca
 // ressemblait a du popcorn pose dans un abat-jour en plastique.
 
-const DROPS = 720, MIST = 200;
+const DROPS = 1150, MIST = 320;
 
 function particleMaterial(soft, blending) {
   return new THREE.ShaderMaterial({
@@ -192,8 +192,8 @@ export function createSplash(scene, waterMat = null) {
       power = pow; dead = isDead;
       // Un plat eclate large et bas, une entree fermee perce et monte : la gerbe dit la note.
       const flat = dead ? 0.85 : 0.5;
-      fill(drops, x, z, pow, { count: DROPS, bias: 0.7, up: [0.55, 0.95], out: [0.35, dead ? 2.4 : 1.4], flat, r0: 0.6, size: [0.022, 0.11], life: [0.55, 0.6], delay: 0.12 });
-      fill(mist, x, z, pow, { count: MIST, bias: 0.4, up: [0.25, 0.6], out: [0.4, dead ? 2.6 : 1.7], flat: 0.7, r0: 0.9, size: [0.7, 1.4], life: [0.8, 0.9], delay: 0.2 });
+      fill(drops, x, z, pow, { count: DROPS, bias: 0.7, up: [0.62, 1.05], out: [0.35, dead ? 2.4 : 1.4], flat, r0: 0.6, size: [0.022, 0.12], life: [0.6, 0.7], delay: 0.12 });
+      fill(mist, x, z, pow, { count: MIST, bias: 0.4, up: [0.25, 0.6], out: [0.4, dead ? 2.6 : 1.7], flat: 0.7, r0: 0.9, size: [0.7, 1.5], life: [0.85, 0.95], delay: 0.2 });
       plumeT = 0; plumeOn = true;
       column.position.set(x, 0, z); crown.position.set(x, 0, z);
       column.visible = crown.visible = true;
