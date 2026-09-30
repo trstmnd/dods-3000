@@ -270,7 +270,8 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
   border:1.5px solid rgba(255,255,255,.8);border-radius:6px;font-weight:900;letter-spacing:.08em;color:var(--accent);border-color:var(--accent)}
 /* l'anneau dit ce qu'il montre : la note si on lache maintenant */
 #tuckring::before{content:"";position:absolute;inset:9%;border-radius:50%;background:rgba(4,14,26,.5)}
-#tr-cap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11px;letter-spacing:.14em;opacity:.8;font-weight:800}
+#tr-cap{position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);width:max-content;max-width:96px;text-align:right;
+  font-size:11px;line-height:1.3;letter-spacing:.12em;opacity:.95;font-weight:800;padding:4px 8px;border-radius:8px;background:rgba(4,14,26,.55)}
 /* la zone d'appel porte son nom : la barre ne rogne plus ce qui depasse */
 #runbar{overflow:visible}
 #runbar-zone{border-radius:0 99px 99px 0}
@@ -296,3 +297,12 @@ body:has(#s-jump.on) .hud-top,body:has(#s-end.on) .hud-top,body:has(#s-jump.on) 
   #s-title .logo{font-size:104px}
   #quit{margin-left:0}
 }
+
+/* Relecture de controle du 30/09 : les petits libelles tombaient a 2:1 de contraste sur un
+   ciel clair ou une eau turquoise. Ombre dure et opacite pleine. */
+.hud-cell,.hud-cell small,.hint,.version,.spots-hint,#level-label,.total{text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 14px rgba(0,0,0,.65)}
+.hud-cell small{opacity:.9}
+.hint{opacity:.85}
+.version{opacity:.6}
+.spots-hint{opacity:.9}
+.card{background:rgba(7,22,38,.98)}
