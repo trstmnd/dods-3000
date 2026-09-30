@@ -252,3 +252,11 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .gesture .g2::after{background:var(--accent)}
 .gesture .g3::after{opacity:.2}
 @keyframes g1{0%,100%{transform:scale(.6);opacity:.5}40%,60%{transform:scale(1);opacity:1}}
+
+/* Grand ecran (PC, Steam Deck, tele) : toute l'interface grandit d'un bloc, facteur --ui
+   calcule par resize() dans main.js (1 sur telephone, 1,7 en 1080p, 2,4 au plus). */
+.screen,#sound,#lang{zoom:var(--ui,1)}
+#quit{display:block;margin:14px auto 0;padding:10px 26px;font-size:13px;letter-spacing:.16em}
+#quit[hidden]{display:none}
+/* Le choix au clavier et a la manette doit se voir de loin. */
+.btn:focus-visible,.spot:focus-visible{outline:3px solid var(--accent);outline-offset:3px}

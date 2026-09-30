@@ -18,7 +18,7 @@ const m = chk.match(/(\d+) OK, (\d+) FAIL/);
 gate('1', 'check.sh', m && m[2] === '0' ? 'PASS' : 'FAIL', m ? `${m[1]} OK, ${m[2]} FAIL` : 'sortie illisible');
 
 // 2. scenarios du harnais
-for (const s of ['smoke', 'timing', 'geste', 'serie', 'leak', 'planche']) {
+for (const s of ['smoke', 'timing', 'geste', 'serie', 'leak', 'planche', 'manette']) {
   const raw = read(`2-${s}.json`);
   if (raw == null) { gate('2', s, 'FAIL', 'absent'); continue; }
   const crash = /^\s*(Error|TypeError|ReferenceError|page\.|browserType\.)/m.test(raw);
@@ -44,15 +44,30 @@ else {
   gate('3', 'expert : score moyen monte avec la hauteur', spread.every((v, i) => !i || v >= spread[i - 1] * 0.95) ? 'PASS' : 'WARN', spread.join(' < '));
 }
 
-// 4. hearth-probe
-const h = json('4-hearth.json');
-if (!h) gate('4', 'hearth sweep', 'FAIL', 'absent ou illisible');
+// 4. hearth-probe : on lit le rapport lui-meme, pas l'enveloppe de la commande (une
+// premiere version lisait un champ absent et rendait PASS sur un rapport qui signalait un
+// bloquant : une porte verte par defaut est pire qu'une porte absente).
+const reports = [];
+const walkR = d => { if (!fs.existsSync(d)) return; for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walkR(p); else if (f === 'report.json') reports.push(p); } };
+walkR(path.join(OUT, '4-hearth'));
+// Constats connus et justifies pour ce jeu. unresponsive-input : hearth tient une touche a
+// un instant arbitraire et compare au repos ; DODS n'a qu'un geste chronometre, donc tenir
+// Espace en plein vol ou sur une carte ne change rien, par design. La preuve que les
+// commandes marchent est la couverture exigee plus bas.
+const KNOWN = { 'unresponsive-input': 'geste chronometre, voir la couverture' };
+if (!reports.length) gate('4', 'hearth sweep', 'FAIL', 'aucun report.json');
 else {
-  const txt = JSON.stringify(h);
-  const findings = (h.result && (h.result.findings || h.result.report?.findings)) || h.findings || [];
-  const bad = findings.filter(f => /crash|black|unresponsive|error/i.test(JSON.stringify(f)));
-  gate('4', 'hearth : aucun crash, ecran noir ni jeu fige', h.ok === false ? 'FAIL' : bad.length ? 'FAIL' : 'PASS',
-    h.ok === false ? (h.error?.message || txt.slice(0, 160)) : `${findings.length} constats, ${bad.length} graves`);
+  const last = reports.sort().at(-1);
+  const rep = JSON.parse(fs.readFileSync(last, 'utf8'));
+  const graves = rep.findings.filter(f => !KNOWN[f.kind] && /blocker|issue/.test(f.severity));
+  gate('4', 'hearth : aucun crash, ecran noir, blocage ni erreur', graves.length || rep.verdicts.error || rep.verdicts.stuck ? 'FAIL' : 'PASS',
+    `${rep.runs} parties, verdicts ${JSON.stringify(rep.verdicts)}, ${graves.length} constats graves` + (graves.length ? ' : ' + graves.map(f => f.kind + ' ' + f.summary).join(' ; ') : ''));
+  const runsDir = path.join(path.dirname(last), 'runs');
+  const cov = new Set();
+  if (fs.existsSync(runsDir)) for (const f of fs.readdirSync(runsDir)) if (f.startsWith('mash')) for (const k of JSON.parse(fs.readFileSync(path.join(runsDir, f), 'utf8')).coverageKeys || []) cov.add(k);
+  const need = ['e:ecran:spots', 'e:ecran:brief', 'e:ecran:run', 'e:saut:fly', 'e:saut:impact'];
+  const miss = need.filter(k => !cov.has(k));
+  gate('4', 'hearth : un bot au hasard atteint l\'eau depuis le titre', miss.length ? 'FAIL' : 'PASS', miss.length ? 'jamais atteint : ' + miss.join(', ') : [...cov].filter(k => k.startsWith('e:note')).join(', ') || 'ok');
 }
 
 // 5. captures

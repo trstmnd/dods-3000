@@ -21,8 +21,8 @@ echo "gauntlet -> $OUT"
 ./check.sh > "$OUT/1-check.txt" 2>&1; echo "1 check : $(tail -1 "$OUT/1-check.txt")"
 
 # 2. regles de jeu, pilotees a la frame pres
-for s in smoke timing geste serie leak planche; do
-  ./tools/run.sh "$s.mjs" > "$OUT/2-$s.json" 2>&1
+for s in smoke timing geste serie leak planche gauntlet/manette; do
+  ./tools/run.sh "$s.mjs" > "$OUT/2-$(basename $s).json" 2>&1
   echo "2 $s : fait"
 done
 

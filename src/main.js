@@ -5,11 +5,12 @@ import { buildWorld } from './world.js';
 import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
+import { DESKTOP, ACH, achieve, quit } from './platform.js';
 
 const $ = s => document.querySelector(s);
 // Les textes fixes de index.html passent dans la langue choisie avant toute autre ecriture du DOM.
 applyStatic();
-export const VERSION = 'v3.0';
+export const VERSION = 'v3.2';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
@@ -26,7 +27,7 @@ const STEER = ['touch', 'desk'].map(d => ({ up: t('steer.up.' + d), down: t('ste
 const E = {};
 for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
   'tuckring', 'tr-grade', 'tr-streak', 'pot', 'level', 'level-bubble', 'level-label', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
-  'pause-resume', 'loading', 'sound', 'lang', 'version'])
+  'pause-resume', 'loading', 'sound', 'lang', 'quit', 'version'])
   E[id] = document.getElementById(id);
 const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
 
@@ -105,6 +106,8 @@ E.sound.addEventListener('click', () => {
 setMuted(!!save.muted);
 // Changer de langue recharge la page : le bouton n'existe que sur l'ecran titre (style.css).
 E.lang.addEventListener('click', () => setLang(LANG === 'fr' ? 'en' : 'fr'));
+// Version bureau seulement : un jeu en plein ecran doit se quitter sans Alt-F4.
+if (DESKTOP) { E.quit.hidden = false; E.quit.addEventListener('click', () => quit()); }
 
 /* ---------- ecrans ---------- */
 const screens = ['title', 'spots', 'brief', 'run', 'jump', 'end'];
@@ -117,6 +120,9 @@ function show(...names) {
   const a = document.activeElement;
   if (a && a !== document.body && a.closest && a.closest('.screen:not(.on)')) a.blur();
   shownAt = performance.now();
+  // Au clavier ou a la manette, chaque menu arrive avec un bouton deja choisi : sans
+  // focus, l'Espace et le bouton A ne savaient rien activer sur la liste des spots.
+  if (lastInput === 'key' || lastInput === 'pad') requestAnimationFrame(focusDefault);
   // Hors du jeu : plus de tension ni de vent, et le plongeur retourne en haut de la falaise.
   if (!names.includes('run')) {
     audio.setTension(0); audio.setWind(0);
@@ -314,6 +320,17 @@ function onJumpDone(res) {
   const gained = bonus ? Math.round(res.score * bonus.mult) : res.score;
   state.runScore += gained;
   showStreak();
+  achieve(ACH.FIRST_JUMP);
+  if (res.dead) achieve(ACH.BELLY_FLOP);
+  else if (res.grade.key === 'perfect') {
+    achieve(ACH.FIRST_PERFECT);
+    if (state.spot.height >= 34) achieve(ACH.HIGH_PERFECT);
+  }
+  if (res.planche && res.planche.key === 'parfaite') achieve(ACH.PLANK_PERFECT);
+  if (state.streak >= 3) achieve(ACH.STREAK_3);
+  save.visited = save.visited || {};
+  save.visited[state.spot.id] = 1;
+  if (SPOTS.every(s => save.visited[s.id])) achieve(ACH.ALL_SPOTS);
   if (bonus) callout(bonus.label, '#5ef0a8');
   else if (broken) toast(t('toast.streakLost'));
   setText(E['hud-score'], String(state.runScore));
@@ -355,6 +372,8 @@ function endRun(dead) {
   const best = save.best[state.spot.id] || 0;
   const record = state.runScore > best;
   if (record) { save.best[state.spot.id] = state.runScore; persist(); }
+  if (state.runScore >= 5000) achieve(ACH.RUN_5000);
+  if (totalScore() >= 20000) achieve(ACH.TOTAL_20000);
   $('#end-title').textContent = dead ? t('end.over') : t('end.done');
   $('#end-sub').textContent = state.spot.name + ' · ' + state.spot.height + ' m';
   $('#end-score').textContent = state.runScore;
@@ -541,7 +560,7 @@ let owner = null;
 let anchorY = 0, steerPtr = 0, keyUp = 0, keyDown = 0;
 const STEER_SPAN = () => Math.max(60, window.innerHeight * 0.12);
 let frameStamp = performance.now(), frameRate = 1;
-function clearHeld() { held.clear(); owner = null; steerPtr = 0; keyUp = 0; keyDown = 0; }
+function clearHeld() { held.clear(); owner = null; steerPtr = 0; keyUp = 0; keyDown = 0; pad.steer = 0; }
 
 // Temps ecoule entre la derniere image simulee et l'evenement, en temps de jeu.
 function lateOf(e) {
@@ -588,6 +607,7 @@ function onPress(e) {
     return;
   }
   if (on('title')) { audio.ui(); buildSpotList(); show('spots'); return; }
+  if (on('spots')) { focusDefault(); return; }
   if (on('brief')) { audio.ui(); startRun(); return; }
   if (!jump || !on('run')) return;
   const late = lateOf(e);
@@ -624,7 +644,8 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     if (e.code === 'ArrowUp') keyUp = 1; else keyDown = 1;
   }
-  if (e.code === 'Escape' && on('run')) { clearHeld(); setPause(false); show('spots'); buildSpotList(); }
+  if (e.code === 'Escape' && !on('title')) { lastInput = 'key'; menuBack(); }
+  if (e.code === 'Tab' || e.code.startsWith('Arrow')) lastInput = 'key';
 });
 window.addEventListener('keyup', e => {
   if (isAction(e)) inputUp('k' + e.code, e);
@@ -661,6 +682,91 @@ document.querySelectorAll('[data-go]').forEach(b => {
   });
 });
 
+/* ---------- menus au clavier et a la manette ---------- */
+// Les boutons atteignables sur l'ecran visible, dans l'ordre de lecture.
+function menuButtons() {
+  const list = [...document.querySelectorAll('.screen.on button, .screen.on [role=button]')]
+    .filter(b => !b.hidden && b.offsetParent !== null && !b.closest('.hud'));
+  if (on('title')) for (const b of [E.quit, E.lang, E.sound]) if (!b.hidden && b.offsetParent !== null) list.push(b);
+  return list;
+}
+// Le bouton choisi d'office : le spot joue en dernier sur la liste, l'action principale
+// (bouton jaune) ailleurs.
+function focusDefault() {
+  if (on('run') && !on('jump') && !on('end')) return;
+  if (on('spots')) {
+    const cards = [...document.querySelectorAll('#spot-list .spot')];
+    const i = Math.max(0, SPOTS.indexOf(state.spot));
+    if (cards[i]) cards[i].focus({ focusVisible: true });
+    return;
+  }
+  const b = document.querySelector('.screen.on .btn.big:not([hidden])') || menuButtons()[0];
+  if (b) b.focus({ focusVisible: true });
+}
+function menuMove(step) {
+  const list = menuButtons();
+  if (!list.length) return;
+  const i = list.indexOf(document.activeElement);
+  list[i < 0 ? 0 : (i + step + list.length) % list.length].focus({ focusVisible: true });
+}
+function menuBack() {
+  if (on('end')) { buildSpotList(); show('spots'); return; }
+  if (on('run')) { clearHeld(); setPause(false); buildSpotList(); show('spots'); return; }
+  if (on('brief')) { buildSpotList(); show('spots'); return; }
+  if (on('spots')) { show('title'); }
+}
+
+/* ---------- manette ---------- */
+// Disposition standard (Xbox, PlayStation, Steam Deck) : A ou une gachette tient le geste,
+// la croix et le stick gauche redressent la planche en vol et parcourent les menus, B et
+// Echap reviennent en arriere, Start met en pause. La manette alimente le meme ensemble de
+// maintiens que le clavier et les doigts (source 'g') : aucune regle de jeu n'est a part.
+const pad = { a: false, b: false, start: false, nav: 0, navT: 0, steer: 0 };
+function pollPad(dt) {
+  const all = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const g of all) if (g && g.connected) { gp = g; break; }
+  if (!gp) {
+    if (pad.a) { pad.a = false; inputUp('g', null); }
+    pad.steer = 0;
+    return;
+  }
+  const btn = i => !!(gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.5));
+  const ay = Math.abs(gp.axes[1] || 0) > 0.25 ? gp.axes[1] : 0;
+  const ax = Math.abs(gp.axes[0] || 0) > 0.5 ? gp.axes[0] : 0;
+  const up = btn(12) || ay < -0.5, down = btn(13) || ay > 0.5;
+  const left = btn(14) || ax < 0, right = btn(15) || ax > 0;
+  const inRun = on('run') && !on('jump') && !on('end');
+  // la planche : stick vers le haut releve la tete, comme la fleche haut
+  pad.steer = inRun ? Math.max(-1, Math.min(1, -ay + (btn(12) ? 1 : 0) - (btn(13) ? 1 : 0))) : 0;
+
+  const a = btn(0) || btn(7) || btn(6);
+  if (a && !pad.a) {
+    pad.a = true; lastInput = 'pad';
+    const f = document.activeElement;
+    // Sur un menu, A active le bouton choisi ; en jeu, il tient le geste.
+    if (!inRun && f && f !== document.body && f.closest && f.closest('button, [role=button]') && !autoPaused) { audio.unlock(); f.click(); }
+    else inputDown('g', null);
+  } else if (!a && pad.a) { pad.a = false; inputUp('g', null); }
+
+  const b = btn(1);
+  if (b && !pad.b) { lastInput = 'pad'; audio.ui(); menuBack(); }
+  pad.b = b;
+  const st = btn(9);
+  if (st && !pad.start) { lastInput = 'pad'; if (inRun) { if (!autoPaused) autoPause(); } else menuBack(); }
+  pad.start = st;
+
+  // Les menus : une case par impulsion, puis repetition toutes les 0,18 s si on tient.
+  const nav = inRun ? 0 : (right || down ? 1 : left || up ? -1 : 0);
+  if (nav && (nav !== pad.nav || pad.navT <= 0)) {
+    lastInput = 'pad';
+    if (on('spots') && !document.activeElement.closest('#spot-list')) focusDefault(); else menuMove(nav);
+    pad.navT = nav !== pad.nav ? 0.35 : 0.18;
+  }
+  pad.nav = nav;
+  pad.navT -= dt;
+}
+
 /* ---------- surface de test ---------- */
 // Pilotage du jeu sans clavier, pour les captures et le check.
 // autoJump : distance au bord (m) a laquelle appuyer. autoTuck : ttc (s) auquel lacher.
@@ -671,7 +777,8 @@ window.__dods = {
   get state() { return state; }, show, startRun, openBrief, quality, spots: SPOTS,
   autoJump: null, autoTuck: null, autoSteer: false, paused: false, slowmo: true, render: true,
   // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
-  draw: () => { if (world) renderer.render(world.scene, camera); }
+  draw: () => { if (world) renderer.render(world.scene, camera); },
+  pad, advance, menuBack, focusDefault
 };
 
 /* ---------- boucle ---------- */
@@ -680,6 +787,10 @@ function resize() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  // L'interface est dessinee pour un telephone (420 x 820). Sur un ecran de PC, de Steam
+  // Deck ou de tele, tout est agrandi d'un bloc : sans ca le HUD fait 11 px sur un 1080p.
+  const ui = Math.max(1, Math.min(2.4, Math.min(w / 420, h / 640)));
+  document.documentElement.style.setProperty('--ui', ui.toFixed(3));
 }
 // redimensionner vide le canvas : en pause, il faut redessiner l'image figee
 window.addEventListener('resize', () => { resize(); needsDraw = true; });
@@ -731,7 +842,7 @@ function frame(dt) {
     const A0 = window.__dods;
     // autoSteer : un pilote parfait pour les tests, qui redresse la planche sans retard
     jump.steer = A0.autoSteer ? Math.max(-1, Math.min(1, jump.tilt * 2.4 + jump.tiltV * 0.5))
-      : Math.max(-1, Math.min(1, steerPtr + keyUp - keyDown));
+      : Math.max(-1, Math.min(1, steerPtr + keyUp - keyDown + pad.steer));
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }
@@ -761,6 +872,7 @@ function loop(ts) {
   const real = Math.max(0, (now - lastStamp) / 1000);
   lastStamp = now;
   frameStamp = now;
+  pollPad(real);
   // En pause, rien ne bouge : on ne redessine pas la meme image soixante fois par
   // seconde. Les tests avancent alors la simulation par tick(), qui dessine lui-meme.
   if (paused()) { if (needsDraw) { needsDraw = false; frame(0); } return; }

@@ -1,8 +1,9 @@
 // Prepare et empaquette la version bureau de DODS 3000.
 //
 //   node build.mjs stage          copie le jeu dans app/, Three.js en local, sans reseau
-//   node build.mjs pack [cibles]  stage puis builds dans dist/ (defaut : les 4 cibles Steam)
-//                                 cibles : darwin-arm64,darwin-x64,win32-x64,linux-x64
+//   node build.mjs pack [cibles]  stage puis builds dans dist/ (defaut : les 3 depots Steam)
+//                                 cibles : darwin-universal,win32-x64,linux-x64 (et darwin-arm64,
+//                                 darwin-x64 pour tester). Steam n'a qu'un depot macOS : universel.
 //
 // Le jeu web ne change pas : c'est ici que l'importmap est reecrite vers la copie locale de
 // Three.js. Le hash d'integrity reste celui du web, et on verifie que les octets copies le
@@ -48,7 +49,8 @@ const STEAM_LIB = {
   'win32-x64': ['win64/steam_api64.dll', '.'],
   'linux-x64': ['linux64/libsteam_api.so', '.'],
   'darwin-arm64': ['osx/libsteam_api.dylib', 'DODS 3000.app/Contents/MacOS'],
-  'darwin-x64': ['osx/libsteam_api.dylib', 'DODS 3000.app/Contents/MacOS']
+  'darwin-x64': ['osx/libsteam_api.dylib', 'DODS 3000.app/Contents/MacOS'],
+  'darwin-universal': ['osx/libsteam_api.dylib', 'DODS 3000.app/Contents/MacOS']
 };
 
 async function pack(targets) {
@@ -104,5 +106,5 @@ function du(dir) {
 }
 
 if (cmd === 'stage') stage();
-else if (cmd === 'pack') await pack((process.argv[3] || 'darwin-arm64,darwin-x64,win32-x64,linux-x64').split(','));
+else if (cmd === 'pack') await pack((process.argv[3] || 'darwin-universal,win32-x64,linux-x64').split(','));
 else { console.log('usage : node build.mjs stage|pack [cibles]'); process.exitCode = 2; }

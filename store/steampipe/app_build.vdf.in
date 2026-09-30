@@ -1,0 +1,24 @@
+"AppBuild"
+{
+	"AppID" "@APPID@"
+	"Desc" "DODS 3000 @VERSION@"
+	"BuildOutput" "@OUT@"
+	"ContentRoot" "@DIST@"
+	"SetLive" ""
+	"Preview" "@PREVIEW@"
+	"Depots"
+	{
+		"@DEPOT_WIN@"
+		{
+			"FileMapping" { "LocalPath" "DODS 3000-win32-x64/*" "DepotPath" "." "Recursive" "1" }
+		}
+		"@DEPOT_MAC@"
+		{
+			"FileMapping" { "LocalPath" "DODS 3000-darwin-universal/*" "DepotPath" "." "Recursive" "1" }
+		}
+		"@DEPOT_LINUX@"
+		{
+			"FileMapping" { "LocalPath" "DODS 3000-linux-x64/*" "DepotPath" "." "Recursive" "1" }
+		}
+	}
+}
