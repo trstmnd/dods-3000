@@ -31,6 +31,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
   #flash.on{opacity:.21}
   #speed{animation:none}
   .overlay.on .card{animation:none}
+  .judge,#jr-crits,#jr-advice,#jr-crits li .bar i{transition:none}
 }
 
 #sound,#lang{position:fixed;z-index:30;left:var(--pad);bottom:calc(var(--pad) + env(safe-area-inset-bottom));
@@ -215,11 +216,43 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 
 /* RESULTATS */
 .result h2{margin:0 0 4px;font-size:clamp(30px,9vw,50px);font-weight:900;letter-spacing:-.02em}
-.result p{margin:0 0 18px;opacity:.75;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+.result p{margin:0 0 10px;opacity:.75;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
 #jr-timing{margin:-10px 0 12px;font-size:13px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
 #jr-landing{margin:-8px 0 12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.65}
 #jr-landing b{color:var(--ink);opacity:.95;letter-spacing:.2em}
-#jr-gauge{margin:0 0 18px}
+/* La carte complete tient sur un ecran de portable, en cas de besoin elle defile :
+   rien n'y est coupé. */
+.card.result{max-height:calc(100vh - 16px);overflow-y:auto}
+
+/* LES JUGES : cinq cartons qui se levent un par un, puis la moyenne */
+#jr-judges{display:flex;gap:6px;justify-content:center;margin:0 0 12px}
+.judge{flex:1;min-width:0;max-width:78px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;padding:7px 2px 6px;text-align:center;
+  opacity:.22;transform:translateY(7px) rotate(-2.5deg);
+  transition:opacity .24s ease,transform .24s cubic-bezier(.2,1.3,.4,1)}
+.judge.up{opacity:1;transform:none;border-color:rgba(255,212,71,.4)}
+.judge small{display:block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;opacity:.75;white-space:nowrap;overflow:hidden}
+.judge b{display:block;font-size:16px;font-weight:900;font-variant-numeric:tabular-nums}
+#jr-judges.done .judge.mark{opacity:1;transform:none;background:rgba(255,212,71,.14);border-color:var(--accent)}
+#jr-judges.done .judge.mark b{color:var(--accent)}
+
+/* LES QUATRE CRITERES : le plus faible surligne, avec son conseil */
+#jr-crits{list-style:none;margin:0 0 10px;padding:0;text-align:left;display:flex;flex-direction:column;gap:6px;
+  opacity:0;transform:translateY(6px);transition:opacity .3s ease,transform .3s ease}
+#jr-crits.on{opacity:1;transform:none}
+#jr-crits li{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+#jr-crits li span{width:92px;flex:none;opacity:.85}
+#jr-crits li .bar{flex:1;display:block;height:6px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+#jr-crits li .bar i{display:block;height:100%;width:100%;border-radius:99px;background:var(--cool);
+  transform-origin:0 50%;transform:scaleX(0);transition:transform .55s cubic-bezier(.2,.9,.3,1)}
+#jr-crits li b{width:34px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+#jr-crits li.weak span,#jr-crits li.weak b{color:var(--hot)}
+#jr-crits li.weak .bar i{background:var(--hot)}
+#jr-advice{margin:0 0 12px;font-size:12px;letter-spacing:.06em;line-height:1.5;text-align:left;
+  opacity:0;transform:translateY(4px);transition:opacity .3s ease,transform .3s ease}
+#jr-advice.on{opacity:1;transform:none}
+#jr-advice b{color:var(--hot);letter-spacing:.14em;margin-right:6px}
+#jr-gauge{margin:0 0 12px}
 .g-track{position:relative;height:10px}
 /* Les bandes sont rognees par le rayon, le repere reste au dessus et deborde en hauteur. */
 .g-bands{position:absolute;inset:0;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
@@ -233,8 +266,8 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .g-ends{display:flex;justify-content:space-between;margin-top:5px;font-size:12px;
   letter-spacing:.18em;text-transform:uppercase;opacity:.45}
 
-.breakdown{list-style:none;margin:0 0 20px;padding:0;text-align:left;font-size:13px}
-.breakdown li{display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
+.breakdown{list-style:none;margin:0 0 14px;padding:0;text-align:left;font-size:13px}
+.breakdown li{display:flex;justify-content:space-between;padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.08)}
 .breakdown li b{color:var(--accent)}
 .breakdown li.total{border:0;font-size:16px;font-weight:800;padding-top:12px}
 .final{font-size:clamp(44px,14vw,74px);font-weight:900;color:var(--accent);line-height:1;margin:6px 0 10px}
@@ -306,3 +339,22 @@ body:has(#s-jump.on) .hud-top,body:has(#s-end.on) .hud-top,body:has(#s-jump.on) 
 .version{opacity:.6}
 .spots-hint{opacity:.9}
 .card{background:rgba(7,22,38,.98)}
+
+/* En paysage (PC, Steam Deck, video 1080p) la carte des juges se coupe en deux
+   colonnes : la note a gauche, le detail des points a droite. En portrait elle
+   reste en une colonne, dans l'ordre de lecture. */
+@media (orientation:landscape){
+  #s-jump .card.result{max-width:min(880px,94vw);display:grid;grid-template-columns:1fr 1fr;column-gap:26px;row-gap:0;
+    grid-template-areas:"t t" "s s" "ti g" "la g" "ju b" "cr b" "ad n";text-align:left}
+  #jr-grade{grid-area:t;text-align:center}
+  #jr-sub{grid-area:s;text-align:center}
+  #jr-timing{grid-area:ti}
+  #jr-landing{grid-area:la}
+  #jr-judges{grid-area:ju}
+  #jr-crits{grid-area:cr}
+  #jr-advice{grid-area:ad}
+  #jr-gauge{grid-area:g;align-self:center;margin-top:8px}
+  .breakdown{grid-area:b;align-self:center}
+  .jr-foot{grid-area:n;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+  .jr-foot .tap-hint{margin:0}
+}

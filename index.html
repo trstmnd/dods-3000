@@ -106,6 +106,21 @@
     <p id="jr-sub"></p>
     <p id="jr-timing"></p>
     <p id="jr-landing"></p>
+    <div id="jr-judges" role="list" data-i18n-aria="judges.aria">
+      <div class="judge" role="listitem"><small data-i18n="judge.1">Astrid</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.2">Bjørn</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.3">Ingrid</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.4">Lars</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.5">Synne</small><b>·</b></div>
+      <div class="judge mark" role="listitem"><small data-i18n="judges.mark">NOTE</small><b id="jr-mark">·</b></div>
+    </div>
+    <ul id="jr-crits">
+      <li data-crit="elan"><span data-i18n="crit.elan">ÉLAN</span><i class="bar"><i></i></i><b>0,0</b></li>
+      <li data-crit="vol"><span data-i18n="crit.vol">VOL</span><i class="bar"><i></i></i><b>0,0</b></li>
+      <li data-crit="fermeture"><span data-i18n="crit.fermeture">FERMETURE</span><i class="bar"><i></i></i><b>0,0</b></li>
+      <li data-crit="reception"><span data-i18n="crit.reception">RÉCEPTION</span><i class="bar"><i></i></i><b>0,0</b></li>
+    </ul>
+    <p id="jr-advice"><b data-i18n="judges.weakLabel">À TRAVAILLER :</b><span id="jr-advice-text"></span></p>
     <div id="jr-gauge" aria-hidden="true">
       <div class="g-track">
         <span class="g-bands">
@@ -119,8 +134,10 @@
       <div class="g-ends"><span data-i18n="gauge.early">trop tôt</span><span data-i18n="gauge.water">eau</span></div>
     </div>
     <ul class="breakdown" id="jr-lines"></ul>
-    <button class="btn big" id="jr-next" data-i18n="result.next">SUITE</button>
-    <p class="tap-hint" data-i18n="result.tap">ou tape n'importe où</p>
+    <div class="jr-foot">
+      <button class="btn big" id="jr-next" data-i18n="result.next">SUITE</button>
+      <p class="tap-hint" data-i18n="result.tap">ou tape n'importe où</p>
+    </div>
   </div>
 </section>
 

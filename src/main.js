@@ -9,6 +9,7 @@ import { buildWorld } from './world.js';
 import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
+import { CRITS } from './judging.js';
 import { DESKTOP, ACH, achieve, quit } from './platform.js';
 
 const $ = s => document.querySelector(s);
@@ -31,7 +32,8 @@ const STEER = ['touch', 'desk'].map(d => ({ up: t('steer.up.' + d), down: t('ste
 const E = {};
 for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
   'tuckring', 'tr-grade', 'tr-streak', 'pot', 'level', 'level-bubble', 'level-label', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
-  'pause-resume', 'loading', 'sound', 'lang', 'quit', 'version'])
+  'pause-resume', 'loading', 'sound', 'lang', 'quit', 'version',
+  'jr-judges', 'jr-mark', 'jr-crits', 'jr-advice', 'jr-advice-text'])
   E[id] = document.getElementById(id);
 const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
 
@@ -298,6 +300,8 @@ function nextJump() {
 const sec = v => LANG === 'fr' ? v.toFixed(2).replace('.', ',') : v.toFixed(2);
 // Un multiplicateur a la francaise : x1,15 et pas x1.15.
 const num = v => LANG === 'fr' ? String(v).replace('.', ',') : String(v);
+// Une note de juge, au dixieme : 7,8 et pas 7.8.
+const num1 = v => LANG === 'fr' ? v.toFixed(1).replace('.', ',') : v.toFixed(1);
 
 function timingText(res) {
   const w = res.win;
@@ -326,6 +330,57 @@ function drawGauge(res) {
   const mark = $('#jr-gauge .g-mark');
   mark.style.left = (res.tucked ? x(res.ttc) : 100) + '%';
   mark.style.background = res.grade.color;
+}
+
+/* ---------- la carte des juges ---------- */
+// Cinq cartons qui se levent un par un, puis la moyenne, puis les quatre criteres
+// avec le plus faible surligne et son conseil. La cascade vit dans le temps de jeu
+// (avancee dans frame()), pas dans un delai CSS : le rendu image par image de la
+// video la rejoue a la frame pres, et la boucle n'ecrit que ce qui change.
+const judgeCards = [...document.querySelectorAll('#jr-judges .judge:not(.mark)')];
+const judgeNotes = judgeCards.map(el => el.querySelector('b'));
+const critLis = [...document.querySelectorAll('#jr-crits li')];
+const critBars = critLis.map(li => li.querySelector('.bar i'));
+const critNotes = critLis.map(li => li.querySelector('b'));
+let cardClock = 0, cardStage = 0;
+
+function fillCard(res) {
+  const jud = res.judged;
+  if (!jud) return;
+  for (let i = 0; i < judgeCards.length; i++) {
+    setText(judgeNotes[i], num1(jud.judges[i].note));
+    setClass(judgeCards[i], 'up', false);
+  }
+  setText(E['jr-mark'], num1(jud.mark));
+  setClass(E['jr-judges'], 'done', false);
+  setClass(E['jr-crits'], 'on', false);
+  for (let i = 0; i < critLis.length; i++) {
+    setText(critNotes[i], num1(jud.notes[i]));
+    setStyle(critBars[i], 'transform', 'scaleX(0)');
+    setClass(critLis[i], 'weak', i === jud.weak);
+  }
+  setText(E['jr-advice-text'], t('advice.' + CRITS[jud.weak]));
+  setClass(E['jr-advice'], 'on', false);
+  cardClock = 0; cardStage = 0;
+}
+
+function updateCard(dt) {
+  const res = state.last;
+  if (!res || !res.judged) return;
+  cardClock += dt;
+  while (cardStage < judgeCards.length && cardClock >= 0.5 + cardStage * 0.32) {
+    setClass(judgeCards[cardStage], 'up', true);
+    audio.tick(1 + cardStage * 0.75);
+    cardStage++;
+  }
+  if (cardStage === judgeCards.length) {
+    setClass(E['jr-judges'], 'done', true);
+    setClass(E['jr-crits'], 'on', true);
+    setClass(E['jr-advice'], 'on', true);
+    // les barres montent maintenant que le bloc est visible : la transition joue
+    for (let i = 0; i < critLis.length; i++)
+      setStyle(critBars[i], 'transform', `scaleX(${(res.judged.notes[i] / 10).toFixed(3)})`);
+  }
 }
 
 // La serie se compte sur les timings GREAT ou mieux. Elle se casse au premier rate,
@@ -373,6 +428,7 @@ function onJumpDone(res) {
   // nommer la forme d'entree : c'est le vocabulaire du dodsing, et ca s'apprend en jouant
   $('#jr-landing').innerHTML = `<b>${res.landing.label}</b> · ${res.landing.note}`;
   drawGauge(res);
+  fillCard(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
     <li><span>${t('line.base', { h: res.height })}</span><b>${res.base}</b></li>
     <li><span>${t('line.style', { air: sec(res.air) })}</span><b>+${res.style}</b></li>
@@ -898,6 +954,7 @@ function frame(dt) {
     else if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) onPress(null);
     else if (A.autoTuck != null && jump.state === 'fly' && !jump.tucked && jump.held && jump.ttc <= A.autoTuck) onRelease(null);
     updateHud(dt);
+    if (on('jump')) updateCard(dt);
     if (shake > 0.01) {
       const amp = shake * 0.55 * motionScale();
       camera.position.x += (Math.random() - 0.5) * amp;
