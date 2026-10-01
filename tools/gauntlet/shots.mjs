@@ -34,8 +34,10 @@ for (const name of WANT) {
     await page.screenshot({ path: f, timeout: 150000 });
     all.push(f);
   };
-  // ecrans de menu : la camera tourne, on la laisse se poser
-  const settle = (n = 90) => page.evaluate(n => { const d = window.__dods; d.paused = true; d.tick(n); d.paused = false; }, n);
+  // ecrans de menu : la camera tourne, on la laisse se poser. Sous rendu logiciel la
+  // boucle qui dessine affamerait la capture CDP (bloom v4 : 3 s par image) : on coupe
+  // le rendu de la boucle, settle et snap dessinent eux-memes via draw().
+  const settle = (n = 90) => page.evaluate(n => { const d = window.__dods; d.render = false; d.paused = true; d.tick(n); d.paused = false; }, n);
 
   await page.evaluate(() => window.__dods.show('title'));
   await settle(); await snap('01-titre');
