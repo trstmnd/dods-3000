@@ -47,6 +47,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v3.2 | **version Steam** : anglais et français, manette et clavier sur tous les menus, interface à l'échelle des grands écrans, 9 succès Steam, bouton Quitter, version bureau Electron hors ligne (`desktop/`), gauntlet outillé (`tools/gauntlet/`), kit de page Steam (`store/`) |
 | v4.0 | **maquette waouh** : eau `Water.js` avec reflets et écume, plongeur aux chevilles articulées et silhouette d'athlète, caméra qui plonge avec lui, ralenti x0,25 sur toute fermeture tenue, bloom en demi-flottant, gerbe plus haute et plus longue au ralenti |
 | v4.1 | **les juges** : la grille officielle du dodsing sur la carte, quatre critères notés sur 10 (élan, vol, fermeture, réception), cinq juges qui lèvent leur note un par un, le critère le plus faible surligné avec son conseil ; la note lit ce que la physique mesure, le score aux points ne change pas |
+| v4.2 | **les figures** : salto et grab au coup sec, vrille sur l'axe latéral du glisse, bonus de vol par figure tenue ; la direction du lâcher choisit la réception (crevette, balle, sans les mains) ; le saut jamais fermé claque, rebondit et part en ragdoll |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 

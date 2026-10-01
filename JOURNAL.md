@@ -277,6 +277,58 @@ propres norvégiens, comme les noms de spots) ; la moyenne des cinq juges est
 arrondie au dixième comme chaque note ; le conseil ne s'affiche qu'après la
 cascade, pour ne pas spoiler le verdict avant le dernier carton.
 
+## La v4.2 : les figures (01/10/2026)
+
+Objectif du bloc 3 du brief v4 : le vol devient du freestyle, et un raté se
+paie. Ce qui a été livré :
+
+- `src/game.js` : trois figures au glisse, sans nouveau bouton. Un coup sec
+  vertical (1,3 unité de glisse en 0,2 s) lance le salto (vers le bas) ou le
+  grab (vers le haut), l'axe horizontal fait la vrille (6,4 rad/s, un tour
+  compte). Une figure terminée avant le lâcher rapporte
+  `figs * 45 * sqrt(h/12)` points et un bonus de vol de 0,6 par figure (au
+  plus 3) ; une figure coupée par le lâcher ne compte pas. Le seuil du coup
+  sec est au-dessus de ce que le doigt du bot du gauntlet sait faire (1,2
+  par fenêtre) : les notes des 1 620 sauts des passes restent comparables ;
+- la direction du lâcher choisit la réception : doigt glissé vers le haut =
+  sans les mains, vers le bas = balle, relâché au centre = crevette. Aux
+  juges : crevette 8,4, sans les mains 8,0, balle 7,4, boule 5,2 ;
+- le saut jamais fermé : plat qui claque, rebond du corps à 11 % de la
+  vitesse d'impact, gravité réduite sous l'eau, ragdoll déterministe
+  (oscillations amorties à phases fixées), score 0 et fin du run ;
+- HUD : toast au nom de la figure, ligne `Figure x{n}` sur la carte des
+  juges, une ligne de consigne sur la fiche du spot (`brief.figs`), i18n
+  fr/en complet ;
+- `tools/figures.mjs` : le test du bloc, dix portes ;
+- `tools/bloc3-video.mjs` : la vidéo du bloc, 20 s à 30 i/s rendues image
+  par image.
+
+Mesuré et vérifié :
+
+- `tools/figures.mjs` : 10 portes PASS sur le Lysefjord piloté. Salto +76
+  points avec toast, vrille 7,01 rad, grab +76, figure coupée refusée,
+  bonus de vol exactement 0,6, réceptions sans les mains et balle obtenues
+  par de vrais événements pointeur, raté : smack à 0, rebond 0,167 m,
+  ragdoll 0,907 rad, écran de fin, déterminisme (deux saltos, mêmes
+  cartons) ;
+- `check.sh` 44 OK ;
+- gauntlet : 16 portes, 2 FAIL (manette, hearth), échecs identiques sur la
+  v3.2 de référence, déjà documentés comme limites du VPS aux blocs 1 et 2 ;
+- CPU : 0,105 ms de logique par image rendu coupé, 1 158 octets alloués
+  par image, au plus 44 294 triangles (gerbe) : la boucle chaude n'alloue
+  toujours pas ;
+- vidéo 20 s relue image par image (1 img/s, planche contact 5x4, deux
+  impacts analysés plein écran) : plongeur visible en vol et dans la gerbe,
+  cartes lisibles, aucun écran noir, pas de clipping.
+
+Arbitrages du bloc : la vrille passe par l'axe horizontal du glisse (le
+`rotation.y` d'Euler de l'invariant 3, un roll d'axe corps), pas par un
+second geste ; une figure non terminée au lâcher vaut zéro, parce que la
+note se prend à l'instant du doigt (invariant 12) ; le ragdoll ne tire rien
+au hasard à l'image, pour que le même raté se rejoue à l'identique ; la
+consigne des figures tient en une ligne sur la fiche du spot, le geste de
+base reste le seul à apprendre pour jouer.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet
@@ -348,6 +400,7 @@ Tout a été mesuré dans Chromium via le harnais `tools/`, jamais à l'œil seu
 | formes d'entrée et inclinaisons | `LANDINGS` dans `src/diver.js` | crevette 1,95, balle 2,15, sans les mains 2,05 |
 | silhouette du plongeur | `parts()` dans `src/diver.js` | pas de grille `STEP` 0,034, fusion `BLEND` 0,042 |
 | multiplicateurs de série | `TUNING.streak` dans `src/game.js` | x1,2 à deux, x1,5 à trois |
+| figures : coup sec, vrille, points | `TUNING.figures` dans `src/game.js` | `flickDelta` 1,3 en 0,2 s ; `twistRate` 6,4 rad/s ; 45 pts x sqrt(h/12), bonus vol 0,6 (max 3) |
 | cadrage de l'entrée | branche `impact` de `placeCamera()` | caméra à 1,9 m, champ 52 |
 
 ---
