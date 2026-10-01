@@ -170,6 +170,7 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 #level[data-planche="parfaite"] #level-label{color:var(--good)}
 #level[data-planche="bancale"] #level-label{color:var(--hot)}
 .wind-line{margin:10px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
+.figs-line{margin:8px 0 0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.55}
 
 /* L'anneau vit en bas de l'ecran : au centre il couvrait le plongeur, c'est-a-dire
    precisement ce qu'il faut regarder pour anticiper l'eau. */

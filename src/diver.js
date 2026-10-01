@@ -345,6 +345,10 @@ export const POSES = {
   // Sans les mains : recroqueville aussi, mais bras ouverts sur les cotes. Ce sont les
   // genoux et la tete qui touchent.
   nohands: { shL: [-0.3, 0, 1.2], shR: [-0.3, 0, -1.2], elL: [-0.35, 0, 0.25], elR: [-0.35, 0, -0.25], hipL: [-2.45, 0, 0.14], hipR: [-2.45, 0, -0.14], knL: [2.5, 0, 0], knR: [2.5, 0, 0], ankL: [-1.3, 0, 0], ankR: [-1.3, 0, 0], neck: [0.95, 0, 0], body: [0.55, 0, 0] },
+  // Le grab : les mains vont chercher les tibias pendant que les jambes restent tendues
+  // et ecartees. C'est la figure classic du dodsing : on la tient, on la montre, elle
+  // dit que l'athlete sait ou il est.
+  grab: { shL: [-2.15, 0, 0.18], shR: [-2.15, 0, -0.18], elL: [-0.5, 0, 0.05], elR: [-0.5, 0, -0.05], hipL: [-0.2, 0, 0.3], hipR: [-0.2, 0, -0.3], knL: [0.15, 0, 0], knR: [0.15, 0, 0], ankL: [-1.25, 0, 0], ankR: [-1.25, 0, 0], neck: [0.5, 0, 0], body: [0.45, 0, 0] },
   // Ferme trop tot : la boule se fait mais sans tenue, bras qui trainent, corps mou.
   ball: { shL: [-1.4, 0, 0.9], shR: [-1.4, 0, -0.9], elL: [-1.6, 0, 0.35], elR: [-1.6, 0, -0.35], hipL: [-2.3, 0, 0.24], hipR: [-2.3, 0, -0.24], knL: [2.2, 0, 0], knR: [2.2, 0, 0], ankL: [-1.3, 0, 0], ankR: [-1.3, 0, 0], neck: [0.4, 0, 0], body: [0.5, 0, 0] },
   pike: { shL: [-2.9, 0, 0.3], shR: [-2.9, 0, -0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], hipL: [1.9, 0, 0.12], hipR: [1.9, 0, -0.12], knL: [-0.15, 0, 0], knR: [-0.15, 0, 0], ankL: [-1.3, 0, 0], ankR: [-1.3, 0, 0], body: [0.3, 0, 0] },
@@ -412,4 +416,33 @@ export function flightPose(t) {
   FLIGHT.knR[0] = 0.02 - b * 0.03;
   FLIGHT.body[2] = Math.sin(t * 1.9) * 0.035;
   return FLIGHT;
+}
+
+// Le plat qui claque : sur un saut rate, le corps ne se pose pas, il rebondit et
+// se desarticule. Chaque articulation oscille sur sa propre frequence, amortie en
+// une petite seconde : un ragdoll sans physique, entierement determine par le temps
+// ecoule depuis l'impact (le meme rate rejoue le meme raté, comme les rafales).
+// Meme discipline que la course et le vol : un seul objet, reecrit sur place.
+const RAG = {
+  shL: [0, 0, 0], shR: [0, 0, 0], elL: [0, 0, 0], elR: [0, 0, 0],
+  hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0],
+  ankL: [0, 0, 0], ankR: [0, 0, 0], neck: [0, 0, 0], body: [0, 0, 0]
+};
+// [frequence, phase, amplitude] par articulation : les membres flottent plus que le buste.
+const RAGF = {
+  shL: [10.3, 0.4, 0.75], shR: [9.1, 1.9, 0.75], elL: [12.7, 2.6, 0.85], elR: [11.6, 4.1, 0.85],
+  hipL: [8.4, 1.1, 0.6], hipR: [7.9, 3.3, 0.6], knL: [13.2, 0.9, 0.95], knR: [12.1, 2.2, 0.95],
+  ankL: [15.1, 1.4, 0.5], ankR: [14.3, 3.0, 0.5], neck: [9.7, 2.8, 0.4], body: [6.3, 0.2, 0.3]
+};
+export function ragdollPose(t, power = 1) {
+  const e = Math.exp(-t * 2.2) * Math.min(1.4, power);
+  for (const k in RAGF) {
+    const f = RAGF[k][0], p = RAGF[k][1], a = RAGF[k][2] * e;
+    const base = POSES.flail[k] || [0, 0, 0];
+    const o = Math.sin(t * f + p) * a;
+    RAG[k][0] = base[0] + o;
+    RAG[k][1] = base[1] + o * 0.35;
+    RAG[k][2] = base[2] + Math.sin(t * f * 0.8 + p * 1.7) * a * 0.55;
+  }
+  return RAG;
 }

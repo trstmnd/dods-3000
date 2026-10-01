@@ -46,7 +46,11 @@ function volAt(j, planche) {
   if (j.flailing) return 1.5;
   const tenue = clamp(j.styleTime / Math.max(0.1, j.airTotal), 0, 1);
   const tenuePlanche = clamp((planche.mult - 0.6) / 0.55, 0, 1);
-  return 10 * (0.55 * tenue + 0.45 * tenuePlanche);
+  // La difficulte est recompensee, mais seulement par-dessus : un vol sans figure leve
+  // exactement le meme carton qu'avant les figures (les notes restent comparables),
+  // et trois figures terminees au plus comptent (TUNING.figures.volMax).
+  const figs = Math.min(3, j.figCountRes || 0);
+  return 10 * (0.55 * tenue + 0.45 * tenuePlanche) + figs * 0.6;
 }
 
 // La fermeture : le plus tard possible, sans le cramer. Note continue a travers les

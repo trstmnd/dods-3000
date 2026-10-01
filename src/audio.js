@@ -74,10 +74,19 @@ export function createAudio() {
     // le lacher : un claquement sec et un souffle court, le corps qui se ferme
     tuck() { blip(880, 0.05, 'square', 0.14, -380); burst(0.12, 2600, 400, 0.22); blip(150, 0.12, 'sine', 0.3, -80); },
     scream() { blip(340, 0.5, 'sawtooth', 0.09, -180); },
+    // une figure terminee : un souffle court qui monte, l'air que le corps vient de couper
+    fig() { burst(0.2, 480, 2300, 0.2); blip(300, 0.14, 'triangle', 0.12, 200); },
     splash(dead) {
-      burst(dead ? 0.22 : 0.7, dead ? 1800 : 5200, dead ? 180 : 300, dead ? 0.55 : 0.4);
-      if (dead) blip(90, 0.3, 'sawtooth', 0.3, -40);
-      else blip(70, 0.35, 'sine', 0.35, -25);
+      if (dead) {
+        // le plat qui claque : la claque seche d'abord (bruit mi-aigu tres court),
+        // puis le sourd qui descend dans le corps. C'est le son qu'on partage.
+        burst(0.14, 2400, 400, 0.6);
+        blip(90, 0.3, 'sawtooth', 0.3, -40);
+        blip(52, 0.45, 'square', 0.38, -22);
+      } else {
+        burst(0.7, 5200, 300, 0.4);
+        blip(70, 0.35, 'sine', 0.35, -25);
+      }
     },
     grade(mult) {
       if (mult >= 3) { [660, 880, 1320, 1760].forEach((f, i) => blip(f, 0.22, 'triangle', 0.16, 0, i * 0.07)); burst(0.6, 9000, 5000, 0.08, 'highpass'); }

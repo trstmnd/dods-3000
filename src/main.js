@@ -15,7 +15,7 @@ import { DESKTOP, ACH, achieve, quit } from './platform.js';
 const $ = s => document.querySelector(s);
 // Les textes fixes de index.html passent dans la langue choisie avant toute autre ecriture du DOM.
 applyStatic();
-export const VERSION = 'v4.1';
+export const VERSION = 'v4.2';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
@@ -279,10 +279,11 @@ function nextJump() {
   // commence sans geste en cours, et ce doigt-la ne compte plus. Meme chose pour une
   // fleche restee enfoncee : elle ne pilote pas la planche du saut suivant.
   owner = null; keyUp = 0; keyDown = 0; steerPtr = 0;
+  keyLeft = 0; keyRight = 0; steerXPtr = 0;
   state.jumpIndex++;
   jump.reset(state.jumpIndex);
   jump.onDone = onJumpDone;
-  lastLevel = -1; gustShown = false;
+  lastLevel = -1; gustShown = false; figSeen = 0;
   setText(E['hud-jump'], `${state.jumpIndex}/${JUMPS_PER_RUN}`);
   setText(E['hud-score'], String(state.runScore));
   showStreak();
@@ -435,6 +436,7 @@ function onJumpDone(res) {
     <li><span>${t('line.timing', { grade: res.grade.label })}</span><b>x${num(res.grade.mult)}</b></li>
     <li><span>${res.takeoff.label}</span><b>x${num(res.takeoff.mult)}</b></li>
     ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${t('line.plank', { label: res.planche.label, deg: Math.round(res.planche.mean * 57.3) })}</span><b>x${num(res.planche.mult)}</b></li>` : ''}
+    ${res.fig ? `<li><span>${t('line.fig', { n: res.fig })}</span><b>+${res.figPts}</b></li>` : ''}
     ${bonus ? `<li><span>${bonus.label}</span><b>x${num(bonus.mult)}</b></li>` : ''}
     <li class="total"><span>${t('line.jump', { n: state.jumpIndex })}</span><b>${gained}</b></li>`;
   const finished = res.dead || state.jumpIndex >= JUMPS_PER_RUN;
@@ -495,7 +497,7 @@ function callout(text, color) {
 }
 
 const GRADE_LEVEL = { chicken: 0, early: 1, good: 2, great: 3, perfect: 4, smack: 5 };
-let lastLevel = -1, beatClock = 0, gustShown = false, lastInput = 'pointer';
+let lastLevel = -1, beatClock = 0, gustShown = false, figSeen = 0, lastInput = 'pointer';
 
 function updateHud(dt) {
   const h = jump.hud();
@@ -554,6 +556,8 @@ function updateHud(dt) {
       setPrompt(h.flailing && !h.held ? t('prompt.flail')
         : !h.held ? t('prompt.press') : steerHint || t('prompt.hold'), h.hot && h.held && !steerHint, !steerHint);
       if (h.gust > 0.35 && !gustShown) { gustShown = true; toast(t('toast.gust')); }
+      // une figure terminee s'annonce : le joueur sait ce qui vient d'etre compte
+      if (h.figCount > figSeen) { figSeen = h.figCount; toast(t('figure.' + h.figLast)); }
       // Le son monte avec le temps qui reste, le coeur accelere : on anticipe a l'oreille.
       const v = Math.max(0, Math.min(1, 1 - h.ttc / 1.9));
       audio.setTension(h.held ? v : 0);
@@ -652,9 +656,13 @@ let owner = null;
 // La planche se tient en glissant le doigt qui tient le geste, vers le haut pour relever
 // la tete, vers le bas pour la baisser. Au clavier : fleches haut et bas avec l'Espace.
 let anchorY = 0, steerPtr = 0, keyUp = 0, keyDown = 0;
+// L'axe horizontal (v4.2) : il ne commande pas la planche, il fait la vrille. Au clavier,
+// fleches gauche et droite avec l'Espace ; a la manette, stick et croix horizontaux.
+let anchorX = 0, steerXPtr = 0, keyLeft = 0, keyRight = 0;
 const STEER_SPAN = () => Math.max(60, window.innerHeight * 0.12);
+const STEER_SPAN_X = () => Math.max(60, window.innerWidth * 0.12);
 let frameStamp = performance.now(), frameRate = 1;
-function clearHeld() { held.clear(); owner = null; steerPtr = 0; keyUp = 0; keyDown = 0; pad.steer = 0; }
+function clearHeld() { held.clear(); owner = null; steerPtr = 0; keyUp = 0; keyDown = 0; steerXPtr = 0; keyLeft = 0; keyRight = 0; pad.steer = 0; pad.steerX = 0; }
 
 // Temps ecoule entre la derniere image simulee et l'evenement, en temps de jeu.
 function lateOf(e) {
@@ -675,7 +683,9 @@ function inputDown(src, e) {
   if (owner !== null) return;
   owner = src;
   anchorY = e && typeof e.clientY === 'number' ? e.clientY : 0;
+  anchorX = e && typeof e.clientX === 'number' ? e.clientX : 0;
   steerPtr = 0;
+  steerXPtr = 0;
   onPress(e);
 }
 function inputUp(src, e) {
@@ -741,6 +751,10 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     if (e.code === 'ArrowUp') keyUp = 1; else keyDown = 1;
   }
+  if (on('run') && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+    e.preventDefault();
+    if (e.code === 'ArrowLeft') keyLeft = 1; else keyRight = 1;
+  }
   if (e.code === 'Escape' && !on('title')) { lastInput = 'key'; menuBack(); }
   if (e.code === 'Tab' || e.code.startsWith('Arrow')) lastInput = 'key';
 });
@@ -748,6 +762,8 @@ window.addEventListener('keyup', e => {
   if (isAction(e)) inputUp('k' + e.code, e);
   if (e.code === 'ArrowUp') keyUp = 0;
   if (e.code === 'ArrowDown') keyDown = 0;
+  if (e.code === 'ArrowLeft') keyLeft = 0;
+  if (e.code === 'ArrowRight') keyRight = 0;
 });
 
 // Les doigts : partout sauf sur les boutons et les ecrans de menu. Le canvas, le HUD,
@@ -764,6 +780,7 @@ window.addEventListener('pointerup', e => inputUp('p' + e.pointerId, e));
 window.addEventListener('pointermove', e => {
   if (owner !== 'p' + e.pointerId) return;
   steerPtr = Math.max(-1, Math.min(1, (anchorY - e.clientY) / STEER_SPAN()));
+  steerXPtr = Math.max(-1, Math.min(1, (e.clientX - anchorX) / STEER_SPAN_X()));
 }, { passive: true });
 window.addEventListener('pointercancel', e => inputUp('p' + e.pointerId, e));
 // Un appui long ne doit ouvrir ni menu contextuel ni loupe : c'est le geste du jeu.
@@ -818,14 +835,14 @@ function menuBack() {
 // la croix et le stick gauche redressent la planche en vol et parcourent les menus, B et
 // Echap reviennent en arriere, Start met en pause. La manette alimente le meme ensemble de
 // maintiens que le clavier et les doigts (source 'g') : aucune regle de jeu n'est a part.
-const pad = { a: false, b: false, start: false, nav: 0, navT: 0, steer: 0 };
+const pad = { a: false, b: false, start: false, nav: 0, navT: 0, steer: 0, steerX: 0 };
 function pollPad(dt) {
   const all = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
   for (const g of all) if (g && g.connected) { gp = g; break; }
   if (!gp) {
     if (pad.a) { pad.a = false; inputUp('g', null); }
-    pad.steer = 0;
+    pad.steer = 0; pad.steerX = 0;
     return;
   }
   const btn = i => !!(gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.5));
@@ -836,6 +853,8 @@ function pollPad(dt) {
   const inRun = on('run') && !on('jump') && !on('end');
   // la planche : stick vers le haut releve la tete, comme la fleche haut
   pad.steer = inRun ? Math.max(-1, Math.min(1, -ay + (btn(12) ? 1 : 0) - (btn(13) ? 1 : 0))) : 0;
+  // la vrille : stick a droite, lacet a droite ; la croix horizontale fait pareil
+  pad.steerX = inRun ? Math.max(-1, Math.min(1, ax + (btn(15) ? 1 : 0) - (btn(14) ? 1 : 0))) : 0;
 
   const a = btn(0) || btn(7) || btn(6);
   if (a && !pad.a) {
@@ -873,7 +892,8 @@ window.__dods = {
   get jump() { return jump; }, get world() { return world; }, camera, renderer,
   get state() { return state; }, get owner() { return owner; }, get held() { return [...held]; }, get autoPaused() { return autoPaused; },
   show, startRun, openBrief, quality, spots: SPOTS,
-  autoJump: null, autoTuck: null, autoSteer: false, paused: false, slowmo: true, render: true,
+  autoJump: null, autoTuck: null, autoSteer: false, autoSteerX: null, autoSteerRaw: null,
+  paused: false, slowmo: true, render: true,
   // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
   draw: () => renderScene(),
   pad, advance, menuBack, focusDefault
@@ -946,8 +966,14 @@ function frame(dt) {
     dt *= k;
     const A0 = window.__dods;
     // autoSteer : un pilote parfait pour les tests, qui redresse la planche sans retard
-    jump.steer = A0.autoSteer ? Math.max(-1, Math.min(1, jump.tilt * 2.4 + jump.tiltV * 0.5))
-      : Math.max(-1, Math.min(1, steerPtr + keyUp - keyDown + pad.steer));
+    const raw = Math.max(-1, Math.min(1, steerPtr + keyUp - keyDown + pad.steer));
+    jump.steer = A0.autoSteer ? Math.max(-1, Math.min(1, jump.tilt * 2.4 + jump.tiltV * 0.5)) : raw;
+    // steerRaw est le glisse du doigt reel : c'est lui que les figures lisent. Sous
+    // pilote automatique il vaut 0 (ou autoSteerRaw pour les scenarios), donc jamais
+    // de flick accidentel dans les tests ni dans le gauntlet.
+    jump.steerRaw = A0.autoSteerRaw != null ? A0.autoSteerRaw : (A0.autoSteer ? 0 : raw);
+    jump.steerX = A0.autoSteerX != null ? A0.autoSteerX
+      : Math.max(-1, Math.min(1, steerXPtr + keyRight - keyLeft + pad.steerX));
     jump.update(dt, s => { shake = s; });
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }
