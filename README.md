@@ -45,6 +45,7 @@ Le numéro s'affiche sous le bouton de l'écran titre. Il vit dans `src/main.js`
 | v3.0 | **la planche** : le vol devient actif, on redresse le corps contre l'élan et le vent en glissant le doigt ; vent propre à chaque spot, rafales fixes par saut, niveau à bulle, multiplicateur de planche dans la mise et sur la carte |
 | v3.1 | passe du gauntlet de la v3 : niveau à bulle vertical dans l'axe du geste, consigne de glisse plus tôt, flèches remises à zéro entre deux sauts |
 | v3.2 | **version Steam** : anglais et français, manette et clavier sur tous les menus, interface à l'échelle des grands écrans, 9 succès Steam, bouton Quitter, version bureau Electron hors ligne (`desktop/`), gauntlet outillé (`tools/gauntlet/`), kit de page Steam (`store/`) |
+| v4.0 | **maquette waouh** : eau `Water.js` avec reflets et écume, plongeur aux chevilles articulées et silhouette d'athlète, caméra qui plonge avec lui, ralenti x0,25 sur toute fermeture tenue, bloom en demi-flottant, gerbe plus haute et plus longue au ralenti |
 
 Le lien ne change jamais, quelle que soit la version : GitHub Pages sert la branche `main` à la racine. GitHub met un cache de 10 minutes sur les fichiers, donc une nouvelle version peut mettre ce temps à apparaître chez quelqu'un qui vient de jouer. Ajouter `?v=2` à l'URL force le rechargement.
 

@@ -201,6 +201,40 @@ et rendait **PASS sur un rapport qui signalait un bloquant**. Une porte verte pa
 est pire qu'une porte absente : elle lit désormais `report.json` et exige que le bot
 atteigne l'eau depuis le titre.
 
+## La v4.0 : la maquette waouh (01/10/2026)
+
+Objectif du bloc 1 du brief v4 : rendre le SAUT waouh, jugé en vidéo, avant de toucher
+au reste du jeu. Ce qui a été livré, dans l'ordre des commits :
+
+- l'eau passe au shader `Water.js` de Three.js (MIT, miroir local dans `tools/vendor/`) :
+  reflets du ciel, écume au rivage, houle vivante ; la physique reste y = 0 (invariant 2) ;
+- le plongeur généré gagne des chevilles articulées et une silhouette d'athlète, les
+  membres vivent pendant le vol (commit « chevilles articulées ») ;
+- la caméra de poursuite plonge avec lui, et TOUTE fermeture tenue passe en ralenti x0,25
+  (avant : PERFECT seulement) ;
+- bloom en demi-flottant, seuls les halos des hautes lumières, tone mapping en fin de
+  chaîne ;
+- la gerbe monte plus haut, dure plus longtemps pour tenir dans le ralenti.
+
+Mesuré et vérifié :
+
+- `tools/bloc1-video.mjs` : rend le même saut pilote (Lysefjord, 34 m) image par image à
+  la frame près, en v4 ET en v3.2, pour comparer. Sous swiftshader une capture CDP coûte
+  plus de 45 s par image : le canvas sort par `toDataURL` dans la page (3,2 s en v4,
+  1,3 s en v3.2) et le HUD par capture alpha masquée, réunies par ffmpeg. `Math.random`
+  est remplacé par un PRNG semé au chargement : le rendu est découpable en tronçons de
+  10 minutes et reprend sans qu'une image change.
+- revue image par image des 2 vidéos 20 s : plongeur articulé lisible en vol, entrée dans
+  l'eau sans clipping cassé, gerbe lisible, carte de note propre, aucun écran noir.
+- logique : 0,095 ms par image rendu coupé (23 000 à 44 000 triangles, 18 à 22 draws).
+  Le nombre d'images par seconde se mesure sur le Mac : le VPS n'a pas de GPU.
+- `check.sh` 43 OK.
+
+Arbitrages du bloc : le plongeur généré articulé tient lieu « d'humain Quaternius » (le
+brief autorisait les assets CC0 ; aucun n'a été nécessaire, le dépôt reste sans fichier
+binaire) ; le son de vent et d'impact existait déjà (`setWind`, `splash`), sa refonte est
+au bloc 6.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet
