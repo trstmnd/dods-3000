@@ -26,7 +26,12 @@ for (const name of WANT) {
     await page.waitForTimeout(160);
     await page.evaluate(() => window.__dods.draw());
     const f = `${DIR}/${name}-${tag}.png`;
-    await page.screenshot({ path: f });
+    // reprise : une capture deja posee n'est pas refaite (utile quand une passe
+    // entiere ne tient pas dans le delai d'une commande, en rendu logiciel)
+    if (fs.existsSync(f)) { all.push(f); return; }
+    // sous rendu logiciel (VPS sans GPU) la composition d'un canvas WebGL depasse
+    // les 30 s par defaut de Playwright : la capture garde le droit de durer
+    await page.screenshot({ path: f, timeout: 150000 });
     all.push(f);
   };
   // ecrans de menu : la camera tourne, on la laisse se poser
