@@ -3,19 +3,21 @@ import { createDiver, applyPose, runPose, flightPose, POSES, LANDINGS } from './
 import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
 import { mulberry32, seedFromString } from './noise.js';
 import { t } from './i18n.js';
+import { judgeJump } from './judging.js';
 
 export const TUNING = {
   gravity: 13.5,
   runSpeed: 4.3,
-  // fenetres de decollage, en metres avant le bord
+  // fenetres de decollage, en metres avant le bord. `key` n'est pas traduit : les
+  // tests et la grille des juges (src/judging.js) le lisent.
   takeoff: [
     // drift : le couple qui fait piquer la planche du nez au depart. Un bon appel
     // part droit, un appel rate part en rotation et oblige a se redresser.
-    { max: 1.15, label: t('takeoff.perfect'), mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
-    { max: 2.6, label: t('takeoff.good'), mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
-    { max: 99, label: t('takeoff.early'), mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
+    { key: 'perfect', max: 1.15, label: t('takeoff.perfect'), mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
+    { key: 'good', max: 2.6, label: t('takeoff.good'), mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
+    { key: 'early', max: 99, label: t('takeoff.early'), mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
   ],
-  noJump: { label: t('takeoff.none'), mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
+  noJump: { key: 'none', label: t('takeoff.none'), mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
   // La planche (v3) : l'ecart d'inclinaison du corps a l'horizontale ideale, en radians.
   // Le doigt commande une inclinaison, le corps la suit avec un peu de retard, le vent et
   // l'elan le poussent. Integree a pas fixe : le meme saut a toutes les frequences.
@@ -126,6 +128,7 @@ export class Jump {
     this.gustSign = rnd() < 0.5 ? -1 : 1;
     this.tilt = 0; this.tiltV = 0; this.tiltSum = 0; this.tiltT = 0; this.pAcc = 0; this.tt = 0;
     this.steer = 0;
+    this.takeoffDist = 0; this.airTotal = 0;
     this.t = 0;
     this.pos = this.pos || new THREE.Vector3();
     this.pos.set(0, this.spot.height, RUN_START_Z);
@@ -143,6 +146,7 @@ export class Jump {
     this.fovKick = 0;
     this.contact = this.contact || new THREE.Vector3(); // ou le corps touche l'eau
     this.landing = LANDINGS.flat; // sans fermeture, c'est le ventre qui prend tout
+    this.landingKey = 'flat';
     this.result = null;
     this.impactT = 0;
     this.takeoff = null;
@@ -194,6 +198,10 @@ export class Jump {
     const t = TUNING.takeoff.find(w => dist <= w.max);
     this.pos.z = z;
     this.takeoff = t;
+    // ce que l'elan et le vol des juges relisent : la distance au bord au moment de
+    // l'appui, et la duree de chute offerte par ce decollage
+    this.takeoffDist = dist;
+    this.airTotal = timeToWater(this.pos.y, t.vy, TUNING.gravity);
     this.vel.set(0, t.vy, t.vz);
     this.state = 'fly';
     this.t = 0;
@@ -207,6 +215,8 @@ export class Jump {
   fall() {
     this.tt = 0; this.pAcc = 0;
     this.takeoff = TUNING.noJump;
+    this.takeoffDist = -0.5;
+    this.airTotal = timeToWater(this.pos.y, TUNING.noJump.vy, TUNING.gravity);
     this.vel.set(0, TUNING.noJump.vy, TUNING.noJump.vz);
     this.state = 'fly';
     this.t = 0;
@@ -231,7 +241,8 @@ export class Jump {
     this.grade = grade;
     // La forme d'entree suit la fermeture : la crevette demande de fermer tard et juste,
     // une fermeture precipitee ne laisse qu'une boule sans forme.
-    this.landing = LANDINGS[LANDING_BY_GRADE[grade.key]];
+    this.landingKey = LANDING_BY_GRADE[grade.key];
+    this.landing = LANDINGS[this.landingKey];
     this.fovKick = 1;
     this.audio?.tuck();
     return true;
@@ -419,12 +430,16 @@ export class Jump {
 
     const planche = this.tucked ? (this.plancheRes || this.planche()) : this.planche();
     const { base, style, score } = this.scoreFor(this.grade, this.styleTime, planche);
+    // Les quatre criteres et les cinq juges se lisent a l'entree dans l'eau, une
+    // fois pour toutes : rien d'eux ne bouge au ralenti ni a l'ecran de resultat.
+    const judged = judgeJump(this, planche, power);
     this.result = {
       dead, grade: this.grade, base, style, score,
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
       height: this.spot.height,
       // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
-      win: this.win, tucked: this.tucked, landing: this.landing, planche
+      win: this.win, tucked: this.tucked, landing: this.landing, planche,
+      judged: { notes: judged.notes, judges: judged.judges, mark: judged.mark, weak: judged.weak }
     };
   }
 
