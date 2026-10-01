@@ -235,6 +235,48 @@ brief autorisait les assets CC0 ; aucun n'a été nécessaire, le dépôt reste 
 binaire) ; le son de vent et d'impact existait déjà (`setWind`, `splash`), sa refonte est
 au bloc 6.
 
+## La v4.1 : les juges (01/10/2026)
+
+Objectif du bloc 2 du brief v4 : le saut noté comme en compétition, lu en moins de
+3 s. Ce qui a été livré, dans l'ordre des commits :
+
+- `src/judging.js` : la grille officielle du dodsing, quatre critères sur 10 au
+  dixième (élan, vol, fermeture, réception) et cinq juges nommés, chacun avec ses
+  affinités et son biais (Lars sévère, Synne généreuse). La note est une lecture
+  de ce que la physique mesure déjà : distance de décollage, temps tenu à plat,
+  multiplicateur de planche, ttc au lâcher, forme d'entrée, puissance de la
+  gerbe. Le score aux points et les records ne bougent pas ;
+- la carte de résultat gagne la lecture compétition : cinq cartons qui se lèvent
+  un par un (0,32 s d'intervalle), la moyenne, puis les quatre critères avec leur
+  barre et le plus faible en rouge suivi de son conseil. La cascade vit dans le
+  temps de jeu (avancée dans `frame()`), pas dans un délai CSS : le rendu image
+  par image la rejoue à la frame près, et `prefers-reduced-motion` la rend
+  instantanée. En paysage la carte se coupe en deux colonnes pour tenir un écran
+  de PC sans défiler ;
+- `tools/juges.mjs` : le test du bloc, neuf portes.
+
+Mesuré et vérifié :
+
+- `tools/juges.mjs` : 9 portes PASS sur un saut pilote au Lysefjord. Critères
+  [9,0 / 9,1 / 9,4 / 10,0], moyenne 9,4, le plus faible (élan) surligné avec son
+  conseil, cascade complète en 1,77 s de jeu, le saut rejoué lève exactement les
+  mêmes cartons, une fermeture précoce tombe à 5,1 en fermeture, le smack reste à
+  0 et termine le run, la relance en un geste prend 3 ms ;
+- captures 1080p et 390x844 de la carte complète, relues : rien de coupé, les six
+  cartons lisibles, le critère le plus faible en rouge ;
+- `tools/bloc2-video.mjs` : 20 s à 30 i/s en 1080p, rendues image par image
+  (titre, saut piloté et son ralenti, cascade, second saut fermé tôt et sa
+  carte). Relue à 1 img/s : plongeur lisible en vol et en boule, cartons levés
+  un par un, seconde carte différente (fermeture 7,2 contre 9,4), aucun écran
+  noir. Trois captures 1920x1080 : pose étirée, boule près de l'eau, carte
+  complète ;
+- `check.sh` 44 OK.
+
+Arbitrages du bloc : les noms des juges ne sont pas traduits (ce sont des noms
+propres norvégiens, comme les noms de spots) ; la moyenne des cinq juges est
+arrondie au dixième comme chaque note ; le conseil ne s'affiche qu'après la
+cascade, pour ne pas spoiler le verdict avant le dernier carton.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet
