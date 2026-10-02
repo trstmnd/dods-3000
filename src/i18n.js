@@ -156,6 +156,18 @@ export const DICT = {
     'result.tap.desk': 'ou appuie sur Espace',
     'result.tap.pad': 'ou appuie sur A',
 
+    // replay et fantome du meilleur saut (v4.3)
+    'replay.watch': 'REVOIR LE SAUT',
+    'replay.tag': 'REPLAY',
+    'replay.angles.aria': 'Angle de la relecture',
+    'replay.angle.suivi': 'SUIVI',
+    'replay.angle.bord': 'AU BORD',
+    'replay.angle.eau': "AU RAS DE L'EAU",
+    'replay.hint.touch': 'touche pour reprendre',
+    'replay.hint.desk': 'Espace : reprendre · flèches : angle',
+    'replay.ghost': 'en bleu : ton meilleur saut',
+    'replay.ghostSet': 'NOUVEAU FANTÔME',
+
     // la grille des juges (src/judging.js)
     'judge.1': 'Astrid',
     'judge.2': 'Bjørn',
@@ -306,6 +318,18 @@ export const DICT = {
     'result.tap.touch': 'or tap anywhere',
     'result.tap.desk': 'or press Space',
     'result.tap.pad': 'or press A',
+
+    // replay and best-jump ghost (v4.3)
+    'replay.watch': 'WATCH REPLAY',
+    'replay.tag': 'REPLAY',
+    'replay.angles.aria': 'Replay angle',
+    'replay.angle.suivi': 'CHASE',
+    'replay.angle.bord': 'JUDGE',
+    'replay.angle.eau': 'WATER LEVEL',
+    'replay.hint.touch': 'tap to go back',
+    'replay.hint.desk': 'Space: go back · arrows: angle',
+    'replay.ghost': 'in blue: your best jump',
+    'replay.ghostSet': 'NEW GHOST',
 
     // the judges grid (src/judging.js)
     'judge.1': 'Astrid',

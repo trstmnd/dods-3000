@@ -98,6 +98,16 @@
   <div id="callout"></div>
   <div id="toast"></div>
   <div id="prompt"></div>
+  <!-- bandeau du replay : trois angles, un retour d'un geste -->
+  <div id="replaybar">
+    <b data-i18n="replay.tag">REPLAY</b>
+    <div class="angles" role="group" data-i18n-aria="replay.angles.aria">
+      <button type="button" id="ra-suivi" data-i18n="replay.angle.suivi">SUIVI</button>
+      <button type="button" id="ra-bord" data-i18n="replay.angle.bord">AU BORD</button>
+      <button type="button" id="ra-eau" data-i18n="replay.angle.eau">AU RAS DE L'EAU</button>
+    </div>
+    <small id="replay-hint"></small>
+  </div>
 </section>
 
 <!-- RESULTAT DU SAUT -->
@@ -136,7 +146,10 @@
     </div>
     <ul class="breakdown" id="jr-lines"></ul>
     <div class="jr-foot">
-      <button class="btn big" id="jr-next" data-i18n="result.next">SUITE</button>
+      <div class="jr-actions">
+        <button class="btn big" id="jr-next" data-i18n="result.next">SUITE</button>
+        <button class="btn ghost" id="jr-replay" data-i18n="replay.watch">REVOIR LE SAUT</button>
+      </div>
       <p class="tap-hint" data-i18n="result.tap">ou tape n'importe où</p>
     </div>
   </div>

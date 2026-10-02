@@ -10,6 +10,7 @@ import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 import { CRITS } from './judging.js';
+import { Recorder, REC_DT, DiverEcho, CAM_ANGLES, createReplayCam, placeReplayCam, loadGhosts, ghostBuf, encodeTrace, saveGhosts } from './replay.js';
 import { DESKTOP, ACH, achieve, quit } from './platform.js';
 
 const $ = s => document.querySelector(s);
@@ -33,7 +34,7 @@ const E = {};
 for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
   'tuckring', 'tr-grade', 'tr-streak', 'pot', 'level', 'level-bubble', 'level-label', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
   'pause-resume', 'loading', 'sound', 'lang', 'quit', 'version',
-  'jr-judges', 'jr-mark', 'jr-crits', 'jr-advice', 'jr-advice-text'])
+  'jr-judges', 'jr-mark', 'jr-crits', 'jr-advice', 'jr-advice-text', 'replaybar', 'replay-hint', 'ra-suivi', 'ra-bord', 'ra-eau'])
   E[id] = document.getElementById(id);
 const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
 
@@ -82,6 +83,89 @@ function loadSave() {
 }
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { } }
 function totalScore() { return Object.values(save.best).reduce((a, b) => a + b, 0); }
+
+/* ---------- replay et fantome (v4.3) ---------- */
+// Le saut qui se joue s'enregistre image par image dans son etat rendu ; la carte le
+// relit sous trois angles, et le meilleur saut du spot reviendra en transparence au
+// saut suivant. La trace vit en temps de jeu : le replay rend la duree vecue, ralenti
+// des derniers metres compris.
+const rec = new Recorder();
+const ghosts = loadGhosts();
+const replayCamState = createReplayCam();
+let replay = null, echo = null, ghostEcho = null;
+let ghostTrace = null;            // { buf, n, ev } du record du spot, pour le saut courant
+let runT = 0, recording = false, lastPhase = '', ghostToasted = false;
+
+function loadGhostNow() {
+  ghostTrace = null;
+  const g = ghosts[state.spot.id];
+  if (!g) return;
+  const buf = ghostBuf(g);
+  if (buf && g.n >= 2) ghostTrace = { buf, n: g.n, ev: g.ev };
+}
+
+function updateReplayHud() {
+  setText(E['replay-hint'], TOUCH ? t('replay.hint.touch') : t('replay.hint.desk'));
+  for (let i = 0; i < CAM_ANGLES.length; i++)
+    setClass(E['ra-' + CAM_ANGLES[i]], 'on', !!replay && replay.angle === i);
+}
+function setReplayAngle(i) {
+  if (!replay) return;
+  replay.angle = ((i % CAM_ANGLES.length) + CAM_ANGLES.length) % CAM_ANGLES.length;
+  updateReplayHud();
+}
+function startReplay() {
+  if (!rec.n || !world || !jump) return;
+  replay = { t: 0, angle: 0, fired: false };
+  if (!echo) echo = new DiverEcho(world.scene, false);
+  echo.show();
+  jump.diver.root.visible = false;
+  if (ghostEcho) ghostEcho.hide();
+  replayCamState.snap = true;
+  setClass(E.replaybar, 'on', true);
+  updateReplayHud();
+  show('run');
+}
+// Retour a la carte : le bandeau se leve, la cascade reprend ou elle en etait.
+function backFromReplay() {
+  stopReplay();
+  show('run', 'jump');
+}
+function stopReplay() {
+  if (!replay) return;
+  replay = null;
+  if (echo) echo.hide();
+  if (jump) jump.diver.root.visible = true;
+  keyUp = keyDown = keyLeft = keyRight = 0;
+  setClass(E.replaybar, 'on', false);
+}
+function replayStep(dt) {
+  replay.t += dt;
+  const ev = rec.ev;
+  if (!replay.fired && ev.impactT >= 0 && replay.t >= ev.impactT) {
+    replay.fired = true;
+    splash.burst(ev.impactX, ev.impactZ, ev.power, ev.dead);
+    audio.splash(ev.dead);
+  }
+  echo.pose(rec.buf, rec.n, replay.t);
+  placeReplayCam(camera, replayCamState, rec.buf, rec.n, ev, replay.t, CAM_ANGLES[replay.angle], state.spot, dt);
+  // la gerbe retombee, le replay a dit ce qu'il avait a dire : retour a la carte
+  if (ev.impactT >= 0 && replay.t > rec.duration + 0.8) backFromReplay();
+}
+
+// Les reperes de la trace : quand le coureur decolle, quand le corps touche, et ou.
+// Les juges ont deja tout calcule a l'impact (result), le replay n'a qu'a relire.
+function notePhase() {
+  if (jump.state === 'fly' && rec.ev.takeoffT < 0) rec.ev.takeoffT = runT;
+  if (jump.state === 'impact' && rec.ev.impactT < 0) {
+    rec.ev.impactT = runT;
+    rec.ev.impactX = jump.contact.x;
+    rec.ev.impactZ = jump.contact.z;
+    rec.ev.power = jump.result ? jump.result.power : 1;
+    rec.ev.dead = !!(jump.result && jump.result.dead);
+  }
+  lastPhase = jump.state;
+}
 
 /* ---------- resolution adaptative ---------- */
 // Le telephone qui tient mal 60 images par seconde perd en finesse, pas en fluidite.
@@ -156,6 +240,7 @@ function show(...names) {
     audio.setTension(0); audio.setWind(0);
     clearHeld();
     if (jump && jump.state !== 'walk') jump.reset(state.jumpIndex);
+    if (ghostEcho) ghostEcho.hide();
     setStyle(E.speed, 'opacity', '0');
   }
 }
@@ -227,6 +312,9 @@ function openBrief(spot) {
 function useWorld(spot) {
   if (world && world.spot.id === spot.id) return;
   if (jump) { jump.dispose(); jump = null; }
+  // les clones de relecture vivent dans la scene du monde : ils partent avant elle
+  if (echo) { echo.dispose(); echo = null; }
+  if (ghostEcho) { ghostEcho.dispose(); ghostEcho = null; }
   if (world) { world.dispose(); world = null; splash = null; }
   world = buildWorld(spot, renderer);
   splash = createSplash(world.scene, world.waterMat);
@@ -262,6 +350,7 @@ function swapWorld(spot) {
 function startRun() {
   clearTimeout(swapTimer);
   pendingSpot = null;
+  stopReplay();
   clearHeld();
   setClass(E.fade, 'on', false);
   useWorld(state.spot);
@@ -275,6 +364,7 @@ function startRun() {
 
 function nextJump() {
   setPause(false);
+  stopReplay();
   // Le doigt qui vient de taper la carte est peut-etre encore pose : le saut suivant
   // commence sans geste en cours, et ce doigt-la ne compte plus. Meme chose pour une
   // fleche restee enfoncee : elle ne pilote pas la planche du saut suivant.
@@ -282,6 +372,10 @@ function nextJump() {
   keyLeft = 0; keyRight = 0; steerXPtr = 0;
   state.jumpIndex++;
   jump.reset(state.jumpIndex);
+  // la trace du saut part de la premiere pose de course ; le fantome du record aussi
+  rec.start();
+  runT = 0; lastPhase = ''; recording = true; ghostToasted = false;
+  loadGhostNow();
   jump.onDone = onJumpDone;
   lastLevel = -1; gustShown = false; figSeen = 0;
   setText(E['hud-jump'], `${state.jumpIndex}/${JUMPS_PER_RUN}`);
@@ -443,6 +537,18 @@ function onJumpDone(res) {
   $('#jr-next').textContent = finished ? t('result.next.end') : t('result.next.jump');
   $('#jr-next').onclick = () => { audio.ui(); advance(); };
   $('#s-jump .tap-hint').textContent = lastInput === 'pad' ? t('result.tap.pad') : TOUCH && lastInput === 'pointer' ? t('result.tap.touch') : t('result.tap.desk');
+  // le fantome du spot est le meilleur saut individuel, pas le meilleur run : c'est un
+  // geste a comparer, la serie n'y est pour rien
+  if (!res.dead && rec.n > 2) {
+    const old = ghosts[state.spot.id];
+    if (!old || res.score > old.score) {
+      // le fantome s'arrete sous la gerbe : le geste suffit, la noyade ne se rejoue pas
+      ghosts[state.spot.id] = encodeTrace(rec, res.score, res.judged ? res.judged.mark : 0,
+        Math.ceil((rec.ev.impactT + 0.8) / REC_DT));
+      saveGhosts(ghosts);
+      if (old) toast(t('replay.ghostSet'));
+    }
+  }
   persist();
   show('run', 'jump');
 }
@@ -702,6 +808,9 @@ function onPress(e) {
     if (jump && jump.state === 'fly' && !jump.tucked) jump.down(0);
     return;
   }
+  // pendant la relecture, tout appui rend la main : le replay est une parenthese,
+  // la boucle d'essais reste courte (un geste pour rejouer, un geste pour reprendre)
+  if (replay) { audio.ui(); backFromReplay(); return; }
   if (on('end')) {
     if (performance.now() - shownAt > 600) { audio.ui(); startRun(); }
     return;
@@ -746,6 +855,15 @@ window.addEventListener('keydown', e => {
     if (e.repeat) return;
     lastInput = 'key';
     inputDown('k' + e.code, e);
+  }
+  // pendant la relecture, les fleches ne tiennent pas la planche : elles tournent
+  // autour du plongeur
+  if (replay && e.code.startsWith('Arrow')) {
+    e.preventDefault();
+    lastInput = 'key';
+    if (!e.repeat)
+      setReplayAngle(replay.angle + (e.code === 'ArrowRight' || e.code === 'ArrowDown' ? 1 : -1));
+    return;
   }
   if (on('run') && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
     e.preventDefault();
@@ -796,6 +914,11 @@ document.querySelectorAll('[data-go]').forEach(b => {
   });
 });
 
+// la relecture depuis la carte, et le choix d'angle au doigt comme au clavier
+$('#jr-replay').addEventListener('click', () => { audio.ui(); startReplay(); });
+for (let i = 0; i < CAM_ANGLES.length; i++)
+  E['ra-' + CAM_ANGLES[i]].addEventListener('click', () => { audio.ui(); setReplayAngle(i); });
+
 /* ---------- menus au clavier et a la manette ---------- */
 // Les boutons atteignables sur l'ecran visible, dans l'ordre de lecture.
 function menuButtons() {
@@ -825,7 +948,7 @@ function menuMove(step) {
 }
 function menuBack() {
   if (on('end')) { buildSpotList(); show('spots'); return; }
-  if (on('run')) { clearHeld(); setPause(false); buildSpotList(); show('spots'); return; }
+  if (on('run')) { stopReplay(); clearHeld(); setPause(false); buildSpotList(); show('spots'); return; }
   if (on('brief')) { buildSpotList(); show('spots'); return; }
   if (on('spots')) { show('title'); }
 }
@@ -873,10 +996,13 @@ function pollPad(dt) {
   pad.start = st;
 
   // Les menus : une case par impulsion, puis repetition toutes les 0,18 s si on tient.
-  const nav = inRun ? 0 : (right || down ? 1 : left || up ? -1 : 0);
+  // En relecture, la croix tourne l'angle au lieu de parcourir un menu.
+  const nav = inRun && !replay ? 0 : (right || down ? 1 : left || up ? -1 : 0);
   if (nav && (nav !== pad.nav || pad.navT <= 0)) {
     lastInput = 'pad';
-    if (on('spots') && !document.activeElement.closest('#spot-list')) focusDefault(); else menuMove(nav);
+    if (replay) setReplayAngle(replay.angle + nav);
+    else if (on('spots') && !document.activeElement.closest('#spot-list')) focusDefault();
+    else menuMove(nav);
     pad.navT = nav !== pad.nav ? 0.35 : 0.18;
   }
   pad.nav = nav;
@@ -894,6 +1020,10 @@ window.__dods = {
   show, startRun, openBrief, quality, spots: SPOTS,
   autoJump: null, autoTuck: null, autoSteer: false, autoSteerX: null, autoSteerRaw: null,
   paused: false, slowmo: true, render: true,
+  // replay et fantome (v4.3) : la trace, la relecture, les angles
+  get rec() { return rec; }, get replay() { return replay; },
+  get echo() { return echo; }, get ghostEcho() { return ghostEcho; }, get ghosts() { return ghosts; },
+  startReplay, stopReplay, setReplayAngle,
   // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
   draw: () => renderScene(),
   pad, advance, menuBack, focusDefault
@@ -960,7 +1090,9 @@ function frame(dt) {
   if (!world) return;
   simTime += dt;
   world.setTime(simTime);
-  if (jump && on('run')) {
+  if (replay) {
+    replayStep(dt);
+  } else if (jump && on('run')) {
     const k = slowFactor();
     frameRate = k;
     dt *= k;
@@ -975,6 +1107,25 @@ function frame(dt) {
     jump.steerX = A0.autoSteerX != null ? A0.autoSteerX
       : Math.max(-1, Math.min(1, steerXPtr + keyRight - keyLeft + pad.steerX));
     jump.update(dt, s => { shake = s; });
+    // la trace du saut s'ecrit apres update : le rig est alors dans l'etat exact qui
+    // vient d'etre rendu, alignContact compris. Le fantome du record rejoue sa propre
+    // course au meme temps de jeu, superpose au coureur : l'ecart se lit tout seul.
+    if (recording) {
+      runT += dt;
+      if (jump.state !== lastPhase) notePhase();
+      rec.sample(jump.diver, runT);
+      if (ghostTrace) {
+        if (!ghostEcho) ghostEcho = new DiverEcho(world.scene, true);
+        ghostEcho.show();
+        if (ghostEcho.pose(ghostTrace.buf, ghostTrace.n, runT)) {
+          if (!ghostToasted) { ghostToasted = true; toast(t('replay.ghost')); }
+        } else ghostEcho.hide();
+      }
+      if ((jump.state === 'impact' && jump.impactT > 1.3) || rec.full) {
+        recording = false;
+        if (ghostEcho) ghostEcho.hide();
+      }
+    }
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }
     else if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) onPress(null);
