@@ -329,6 +329,77 @@ au hasard à l'image, pour que le même raté se rejoue à l'identique ; la
 consigne des figures tient en une ligne sur la fiche du spot, le geste de
 base reste le seul à apprendre pour jouer.
 
+## La v4.3 : le replay et le fantôme (03/10/2026)
+
+Objectif du bloc 4 du brief v4 : revoir son saut, et se courir après. Ce qui
+a été livré :
+
+- `src/replay.js` : la trace du saut, un échantillonnage du rig rendu (pas
+  une re-simulation) dans un `Float32Array` préalloué : 43 nombres par image
+  de jeu à 60 Hz, position racine et 12 articulations en Euler, ralenti des
+  derniers mètres compris. Les repères (décollage, impact, force de gerbe)
+  voyagent avec. Le même module porte le clone de relecture (`DiverEcho`,
+  opaque pour le replay, teinté et translucide pour le fantôme, sans ombre),
+  les trois cameras et la sauvegarde des fantômes en base64 dans
+  localStorage ;
+- `src/main.js` : la carte des juges offre la relecture ; trois angles
+  (poursuite recalculée depuis la trace, juge immobile au bord fov 30,
+  contre-plongée au ras de l'eau fov 46), tournés au doigt, aux flèches et
+  au stick. La gerbe du replay part a l'instant d'impact enregistré, et la
+  relecture rend la main seule une fois la gerbe retombée. Le meilleur saut
+  individuel d'un spot devient fantôme : il rejoue la course du saut
+  suivant superposé au coureur, et s'en détache quand les gestes divergent ;
+  le HUD d'altitude suit l'écho pendant la relecture ;
+- le fantôme s'arrête à l'impact plus 0,8 s : le geste et une courte queue
+  sous la gerbe, pas la noyade (76 587 octets en localStorage contre 82 551
+  pour la trace complète) ;
+- `tools/replay.mjs` : le test du bloc, 15 portes ;
+- `tools/bloc4-video.mjs` : la vidéo du bloc, 20 s à 30 i/s rendues image
+  par image ; `tools/perf-replay.mjs` : le surcoût de trace, fantôme et
+  relecture.
+
+Mesuré et vérifié :
+
+- `tools/replay.mjs` : 15 portes PASS sur le Lysefjord piloté. Trace de 360
+  échantillons (6,0 s de jeu), vol 2,68 s, gerbe x1,37 ; le plongeur relevé
+  pendant la chute est dans la trace interpolée ici indépendamment (24
+  relevés, pire écart 0,465 m pour 0,5 de limite en chute libre, où une
+  image vaut 40 cm) ; trois angles, trois cameras distinctes (suivi fov
+  64,4 ; bord fov 30,2 ; eau fov 45,8) ; l'écho colle à la trace à 0 m ;
+  gerbe du replay à 4,75 s contre 4,750 s enregistrés ; retour seul a la
+  carte après 108 images, relance au geste en 508 ms ; fantôme superposé
+  (0 m au départ comme à 1 s), translucide (opacité max 0,34), sans ombre ;
+  il survit au rechargement et un saut moins bon (517 pts) ne le remplace
+  pas ;
+- `check.sh` 45 OK ;
+- gauntlet : 16 portes, 2 FAIL (manette, hearth). Les deux sont les limites
+  VPS documentées depuis les blocs 1 et 2 : le focus auto des boutons ne
+  se pose pas en headless (même symptôme focus absent sur le verdict de la
+  v4.2 de référence), et le sweep hearth dépasse le temps disponible sous
+  swiftshader ;
+- CPU (rendu coupé, VPS 2 cœurs, i/s à mesurer sur le Mac) : 0,082 ms de
+  logique par image, 0,078 ms avec trace et fantôme actifs (indiscernable
+  dans le bruit), 0,014 ms par image de relecture. `rec.sample` et
+  `ghostEcho.pose` isolées allouent 0 octet par image ; la mesure
+  d'octets de `perf.mjs` n'est pas exploitable sur le VPS (trois runs :
+  +5 471, -6 090, -6 066 : elle ne mesure que le rythme du ramasse-miettes),
+  à re-mesurer sur le Mac ;
+- vidéo 20 s relue image par image (1 img/s, mosaïque des quatre moments
+  clés) : plongeur visible aux trois angles, gerbe entière sous la
+  contre-plongée, fantôme superposé puis détaché, cartes lisibles, aucun
+  écran noir.
+
+Arbitrages du bloc : le replay échantillonne le rig rendu plutôt que de
+re-simuler, parce que ce qui doit se rejouer est ce qui a été vecu, ralenti
+des derniers mètres compris, et qu'une seconde physique ferait deux
+vérités ; le fantôme est le meilleur saut individuel, pas le meilleur run :
+c'est un geste a comparer, la série n'y est pour rien ; il se coupe sous la
+gerbe, la noyade n'apprend rien au joueur qui vient de la voir ; la
+relecture rend la main seule et se coupe au même geste qui la relance, la
+boucle d'essais reste courte (même règle que la carte) ; les flèches
+tournent l'angle en relecture et ne pilotent plus la planche, un écran, un
+sens.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet
