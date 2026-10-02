@@ -148,6 +148,9 @@ function replayStep(dt) {
     audio.splash(ev.dead);
   }
   echo.pose(rec.buf, rec.n, replay.t);
+  // le chiffre d'altitude suit l'echo : fige a zero par updateHud, il contredisait
+  // le plongeur qui vole a l'ecran pendant toute la relecture
+  setText(E['hud-alt'], Math.max(0, Math.round(echo.diver.root.position.y)) + ' m');
   placeReplayCam(camera, replayCamState, rec.buf, rec.n, ev, replay.t, CAM_ANGLES[replay.angle], state.spot, dt);
   // la gerbe retombee, le replay a dit ce qu'il avait a dire : retour a la carte
   if (ev.impactT >= 0 && replay.t > rec.duration + 0.8) backFromReplay();
