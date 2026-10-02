@@ -10,6 +10,7 @@ import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
 import { CRITS } from './judging.js';
+import { defisFor, defiDone, defiLabel, UNLOCK_NEED } from './defis.js';
 import { Recorder, REC_DT, DiverEcho, CAM_ANGLES, createReplayCam, placeReplayCam, loadGhosts, ghostBuf, encodeTrace, saveGhosts } from './replay.js';
 import { DESKTOP, ACH, achieve, quit } from './platform.js';
 
@@ -83,6 +84,44 @@ function loadSave() {
 }
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { } }
 function totalScore() { return Object.values(save.best).reduce((a, b) => a + b, 0); }
+
+/* ---------- defis et progression (v4.4) ---------- */
+// Trois defis par spot ; deux ouvrent le suivant. Les defis coches vivent dans la
+// meme sauvegarde que les records, donc ils survivent au rechargement.
+function defisOf(spot) {
+  save.defis = save.defis || {};
+  return save.defis[spot.id] || (save.defis[spot.id] = {});
+}
+function defisDone(spot) {
+  const st = save.defis && save.defis[spot.id];
+  if (!st) return 0;
+  return defisFor(spot).filter(d => st[d.key]).length;
+}
+// Un spot s'ouvre a UNLOCK_NEED defis du precedent. Un record pose avant la v4.4
+// vaut deblocage : les joueurs de la v3 gardent leurs spots, les defis restent a
+// cocher. Le premier spot est toujours ouvert, c'est la que le geste s'apprend.
+function spotOpen(i) {
+  if (i <= 0) return true;
+  if ((save.best[SPOTS[i].id] || 0) > 0) return true;
+  return defisDone(SPOTS[i - 1]) >= UNLOCK_NEED;
+}
+
+// Les defis se lisent au resultat, comme les juges : les grandeurs sont figees depuis
+// l'entree dans l'eau. Renvoie les libelles nouvellement coches.
+function checkDefis(res) {
+  const spot = state.spot;
+  const st = defisOf(spot);
+  const next = SPOTS.indexOf(spot) + 1;
+  const before = defisDone(spot);
+  const done = [];
+  for (const df of defisFor(spot))
+    if (!st[df.key] && defiDone(df, res)) { st[df.key] = 1; done.push(defiLabel(df)); }
+  if (done.length) toast(t('defi.done', { label: done.join(' · ') }));
+  // un seul saut peut cocher deux defis d'un coup : le basculement se lit avant/apres
+  if (next < SPOTS.length && before < UNLOCK_NEED && defisDone(spot) >= UNLOCK_NEED)
+    callout(t('unlock.spot', { name: SPOTS[next].name }), '#ffd447');
+  return done;
+}
 
 /* ---------- replay et fantome (v4.3) ---------- */
 // Le saut qui se joue s'enregistre image par image dans son etat rendu ; la carte le
@@ -251,34 +290,59 @@ function show(...names) {
 function buildSpotList() {
   const list = $('#spot-list');
   list.innerHTML = '';
-  for (const s of SPOTS) {
+  const sky = s => `linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})`;
+  SPOTS.forEach((s, i) => {
     // Un vrai bouton : focus au clavier, Entree et Espace natifs, annonce par les lecteurs d'ecran.
     const el = document.createElement('button');
     el.className = 'spot';
     el.type = 'button';
     const best = save.best[s.id] || 0;
+    if (!spotOpen(i)) {
+      // Le spot ferme : la carte reste, le voyage continue derriere. Ce qui manque est
+      // ecrit dessus, avec les points des defis du spot qui l'ouvrent.
+      const prev = SPOTS[i - 1];
+      el.classList.add('locked');
+      el.disabled = true;
+      el.setAttribute('aria-label',
+        t('spot.locked.aria', { name: s.name, place: loc(s, 'place'), height: s.height, n: UNLOCK_NEED, spot: prev.name }));
+      el.innerHTML = `
+        <span class="sky" style="background:${sky(s)}"></span>
+        <span class="name">${s.name}</span>
+        <span class="place">${loc(s, 'place')}</span>
+        <span class="lock" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1.2c.5 0 .8.4.8.9v8.2c0 .5-.3.9-.8.9H5.8c-.5 0-.8-.4-.8-.9v-8.2c0-.5.3-.9.8-.9H7zm2 0h6V8a3 3 0 0 0-6 0v2z"/></svg>
+          <b>${t('spot.locked')}</b>
+          <small>${t('spot.locked.hint', { n: UNLOCK_NEED, spot: prev.name })}</small>
+          <span class="pins">${defisFor(prev).map(d => `<i class="${save.defis && save.defis[prev.id] && save.defis[prev.id][d.key] ? 'on' : ''}"></i>`).join('')}</span>
+        </span>`;
+      list.appendChild(el);
+      return;
+    }
     el.setAttribute('aria-label',
       t('spot.aria', { name: s.name, place: loc(s, 'place'), height: s.height, diff: DIFF[s.diff], best }));
+    el.dataset.ix = i;
     el.innerHTML = `
-      <span class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></span>
+      <span class="sky" style="background:${sky(s)}"></span>
       <span class="name">${s.name}</span>
       <span class="place">${loc(s, 'place')}</span>
       <span class="meta" aria-hidden="true">
         <span><b>${s.height} m</b></span>
-        <span class="diff">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
+        <span class="diff">${[1, 2, 3, 4, 5].map(j => `<i class="${j <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
         <span>${t('spots.best')} <b>${best}</b></span>
-      </span>`;
+      </span>
+      <span class="pins" aria-hidden="true">${defisFor(s).map(d => `<i class="${save.defis && save.defis[s.id] && save.defis[s.id][d.key] ? 'on' : ''}"></i>`).join('')}</span>`;
     el.onclick = () => { audio.ui(); openBrief(s); };
     list.appendChild(el);
-  }
+  });
   $('#total-score').textContent = totalScore();
 }
 
 // Les fleches parcourent la grille des spots, Debut et Fin sautent aux extremites.
+// Les spots fermes ne sont pas des etapes : un bouton disabled ne prend pas le focus.
 $('#spot-list').addEventListener('keydown', e => {
   const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
   if (step === undefined && e.key !== 'Home' && e.key !== 'End') return;
-  const cards = [...document.querySelectorAll('#spot-list .spot')];
+  const cards = [...document.querySelectorAll('#spot-list .spot:not(.locked)')];
   if (!cards.length) return;
   const i = cards.indexOf(document.activeElement);
   const next = e.key === 'Home' ? 0
@@ -296,6 +360,22 @@ function openBrief(spot) {
   $('#brief-diff').textContent = DIFF[spot.diff];
   $('#brief-best').textContent = save.best[spot.id] || 0;
   $('#brief-note').textContent = loc(spot, 'note');
+  // les trois defis du spot, coches ou a faire : la raison de revenir y est ecrite
+  const st = save.defis && save.defis[spot.id] || {};
+  const ul = $('#brief-defis');
+  ul.innerHTML = '';
+  for (const df of defisFor(spot)) {
+    const li = document.createElement('li');
+    if (st[df.key]) li.className = 'done';
+    li.innerHTML = `<i aria-hidden="true"></i><span>${defiLabel(df)}</span>`;
+    ul.appendChild(li);
+  }
+  const next = SPOTS[SPOTS.indexOf(spot) + 1];
+  const openLine = $('#brief-defis-open');
+  if (next && !spotOpen(SPOTS.indexOf(spot) + 1)) {
+    openLine.hidden = false;
+    openLine.textContent = t('defi.opens', { n: UNLOCK_NEED, spot: next.name });
+  } else openLine.hidden = true;
   // Le vent dit ce que la planche va demander : rien a Frognerbadet, beaucoup au Lysefjord.
   const w = spot.wind || 0;
   const tip = t('steer.tip');
@@ -552,6 +632,8 @@ function onJumpDone(res) {
       if (old) toast(t('replay.ghostSet'));
     }
   }
+  // les defis du spot, coches au meme instant que la carte des juges
+  checkDefis(res);
   persist();
   show('run', 'jump');
 }
@@ -926,7 +1008,7 @@ for (let i = 0; i < CAM_ANGLES.length; i++)
 // Les boutons atteignables sur l'ecran visible, dans l'ordre de lecture.
 function menuButtons() {
   const list = [...document.querySelectorAll('.screen.on button, .screen.on [role=button]')]
-    .filter(b => !b.hidden && b.offsetParent !== null && !b.closest('.hud'));
+    .filter(b => !b.hidden && !b.disabled && b.offsetParent !== null && !b.closest('.hud'));
   if (on('title')) for (const b of [E.quit, E.lang, E.sound]) if (!b.hidden && b.offsetParent !== null) list.push(b);
   return list;
 }
@@ -935,9 +1017,12 @@ function menuButtons() {
 function focusDefault() {
   if (on('run') && !on('jump') && !on('end')) return;
   if (on('spots')) {
-    const cards = [...document.querySelectorAll('#spot-list .spot')];
+    // le spot courant s'il est ouvert, sinon la derniere carte ouverte avant lui
+    const cards = [...document.querySelectorAll('#spot-list .spot:not(.locked)')];
     const i = Math.max(0, SPOTS.indexOf(state.spot));
-    if (cards[i]) cards[i].focus({ focusVisible: true });
+    const el = cards.find(c => +c.dataset.ix === i)
+      || cards[Math.max(0, Math.min(cards.length - 1, cards.filter(c => +c.dataset.ix < i).length))];
+    if (el) el.focus({ focusVisible: true });
     return;
   }
   const b = document.querySelector('.screen.on .btn.big:not([hidden])') || menuButtons()[0];

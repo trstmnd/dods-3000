@@ -56,7 +56,21 @@ export const DICT = {
     'spots.heading': 'CHOISIS TON SPOT',
     'spots.total': 'TOTAL',
     'spots.best': 'RECORD',
+    'spots.horizon': 'Record du monde : 48,7 m',
     'spot.aria': '{name}, {place}, {height} mètres, difficulté {diff}, record {best}',
+    'spot.locked': 'VERROUILLÉ',
+    'spot.locked.hint': '{n} défis à {spot}',
+    'spot.locked.aria': '{name}, {place}, {height} mètres. Verrouillé : réussis {n} défis à {spot}.',
+
+    // les defis du spot (v4.4)
+    'defi.title': 'DÉFIS',
+    'defi.aria': 'Les défis du spot',
+    'defi.perfect': 'Ferme dans la fenêtre parfaite',
+    'defi.landing': 'Une entrée {label}',
+    'defi.splash': 'Une gerbe de plus de {n} m',
+    'defi.done': 'Défi réussi : {label}',
+    'defi.opens': '{n} défis ici ouvrent {spot}',
+    'unlock.spot': '{name} DÉBLOQUÉ',
 
     // fiche du spot
     'brief.height': 'hauteur',
@@ -219,7 +233,21 @@ export const DICT = {
     'spots.heading': 'PICK YOUR SPOT',
     'spots.total': 'TOTAL',
     'spots.best': 'BEST',
+    'spots.horizon': 'World record: 48.7 m',
     'spot.aria': '{name}, {place}, {height} meters, difficulty {diff}, best {best}',
+    'spot.locked': 'LOCKED',
+    'spot.locked.hint': '{n} challenges at {spot}',
+    'spot.locked.aria': '{name}, {place}, {height} meters. Locked: clear {n} challenges at {spot}.',
+
+    // the spot challenges (v4.4)
+    'defi.title': 'CHALLENGES',
+    'defi.aria': 'The spot challenges',
+    'defi.perfect': 'Close inside the perfect window',
+    'defi.landing': 'A {label} entry',
+    'defi.splash': 'A splash over {n} m',
+    'defi.done': 'Challenge cleared: {label}',
+    'defi.opens': '{n} challenges here unlock {spot}',
+    'unlock.spot': '{name} UNLOCKED',
 
     // spot brief
     'brief.height': 'height',

@@ -552,7 +552,7 @@ export class Jump {
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
       height: this.spot.height,
       // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
-      win: this.win, tucked: this.tucked, landing: this.landing, planche,
+      win: this.win, tucked: this.tucked, landing: this.landing, landingKey: this.landingKey, planche,
       fig: figs, figPts: fig, power,
       judged: { notes: judged.notes, judges: judged.judges, mark: judged.mark, weak: judged.weak }
     };

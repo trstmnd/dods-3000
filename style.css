@@ -106,6 +106,22 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 .diff i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.28);display:block}
 .diff i.on{background:var(--hot)}
 
+/* Un spot ferme : la carte reste lisible, le voyage attend. */
+.spot.locked{cursor:default}
+.spot.locked .sky{filter:saturate(.25) brightness(.55)}
+.spot.locked .name,.spot.locked .place{opacity:.55}
+.spot.locked:active,.spot.locked:hover{transform:none;border-color:rgba(255,255,255,.14)}
+.spot .lock{position:absolute;inset:auto 0 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:7px;
+  padding:10px 2px 0;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.spot .lock svg{width:15px;height:15px;fill:rgba(255,255,255,.75)}
+.spot .lock b{font-size:11px;letter-spacing:.14em}
+.spot .lock small{font-size:10px;opacity:.8;letter-spacing:.06em;text-transform:none}
+/* Les points des defis : trois par spot, sur la carte ouverte comme sur la fermee. */
+.pins{display:inline-flex;gap:4px;align-items:center}
+.pins i{width:8px;height:8px;border-radius:50%;border:1px solid rgba(255,255,255,.5);display:block}
+.pins i.on{background:var(--good);border-color:var(--good)}
+.spot>.pins{position:absolute;top:12px;right:12px}
+
 /* CARTES */
 .card{background:rgba(7,22,38,.88);border:1px solid rgba(255,255,255,.14);border-radius:22px;
   padding:26px;max-width:460px;width:100%;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5)}
@@ -171,6 +187,22 @@ canvas#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-a
 #level[data-planche="bancale"] #level-label{color:var(--hot)}
 .wind-line{margin:10px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
 .figs-line{margin:8px 0 0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.55}
+/* Les trois defis du spot : ce qu'il reste a faire y est ecrit, coches ou pas. */
+.defis{margin:14px 0 0;text-align:left}
+.defis h3{margin:0 0 6px;font-size:12px;letter-spacing:.2em;color:var(--accent)}
+.defis ul{list-style:none;margin:0;padding:0}
+.defis li{display:flex;align-items:center;gap:9px;padding:4px 0;font-size:13px;opacity:.85}
+.defis li i{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4);
+  flex:none;position:relative}
+.defis li.done{opacity:1}
+.defis li.done i{background:var(--good);border-color:var(--good)}
+.defis li.done i::after{content:'';position:absolute;left:3.5px;top:1px;width:4px;height:7px;
+  border:solid #06281a;border-width:0 2px 2px 0;transform:rotate(42deg)}
+.defis li.done span{text-decoration:line-through;text-decoration-color:rgba(94,240,168,.6)}
+.defis-open{margin:8px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.6;text-align:center}
+/* La ligne d'horizon : le record du monde reel, sous la liste des spots. */
+.world-record{margin:10px 0 0;text-align:center;font-size:12px;letter-spacing:.12em;opacity:.55;
+  text-shadow:0 1px 2px rgba(0,0,0,.95)}
 
 /* L'anneau vit en bas de l'ecran : au centre il couvrait le plongeur, c'est-a-dire
    precisement ce qu'il faut regarder pour anticiper l'eau. */
