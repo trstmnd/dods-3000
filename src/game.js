@@ -539,7 +539,9 @@ export class Jump {
       this.splash.burst(TMPV.x, TMPV.z, power, dead);
     } else this.splash.burst(this.contact.x, this.contact.z, power, dead);
     this.shake = dead ? 1.25 : 0.55 + this.grade.mult * 0.12;
-    this.audio?.splash(dead);
+    // la puissance mesuree du saut dose le sub et le clapot : plus c'est haut,
+    // plus l'impact descend dans le corps
+    this.audio?.splash(dead, power);
 
     const planche = this.tucked ? (this.plancheRes || this.planche()) : this.planche();
     const figs = this.tucked ? this.figCountRes : 0;

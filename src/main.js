@@ -184,7 +184,9 @@ function replayStep(dt) {
   if (!replay.fired && ev.impactT >= 0 && replay.t >= ev.impactT) {
     replay.fired = true;
     splash.burst(ev.impactX, ev.impactZ, ev.power, ev.dead);
-    audio.splash(ev.dead);
+    // le replay rejoue le plouf pour de bon (puissance comprise), la clameur ne
+    // se rejoue pas : une foule ne s'excite pas deux fois du meme saut
+    audio.splash(ev.dead, ev.power);
   }
   echo.pose(rec.buf, rec.n, replay.t);
   // le chiffre d'altitude suit l'echo : fige a zero par updateHud, il contredisait
@@ -205,6 +207,10 @@ function notePhase() {
     rec.ev.impactZ = jump.contact.z;
     rec.ev.power = jump.result ? jump.result.power : 1;
     rec.ev.dead = !!(jump.result && jump.result.dead);
+    // l'eau frappe dans la main : fort et long selon la puissance mesuree, plus
+    // sec et rebondi a plat. Puis la foule tranche : ovation ou ohhh decu.
+    buzz(rec.ev.dead ? [90, 50, 120] : [Math.round(40 + rec.ev.power * 50)]);
+    audio.cheer(rec.ev.dead ? 0 : (jump.result && jump.result.judged ? jump.result.judged.mark : 0), rec.ev.dead);
   }
   lastPhase = jump.state;
 }
@@ -279,7 +285,7 @@ function show(...names) {
   if (lastInput === 'key' || lastInput === 'pad') requestAnimationFrame(focusDefault);
   // Hors du jeu : plus de tension ni de vent, et le plongeur retourne en haut de la falaise.
   if (!names.includes('run')) {
-    audio.setTension(0); audio.setWind(0);
+    audio.setTension(0); audio.setWind(0); audio.setCrowd(0, true);
     clearHeld();
     if (jump && jump.state !== 'walk') jump.reset(state.jumpIndex);
     if (ghostEcho) ghostEcho.hide();
@@ -574,7 +580,8 @@ function showStreak() {
 function onJumpDone(res) {
   state.last = res;
   save.jumps = (save.jumps || 0) + 1;
-  if (res.dead) buzz([40, 60, 40]);
+  // la vibration du plat vit a l'instant de l'eau (notePhase), pas a la carte :
+  // une seule frappe, au moment ou le ventre frappe
   const broken = state.streak >= 2 && !keepsStreak(res.grade);
   state.streak = !res.dead && keepsStreak(res.grade) ? state.streak + 1 : 0;
   const bonus = streakBonus(state.streak);
@@ -698,6 +705,8 @@ function updateHud(dt) {
     setStyle(E['runbar-fill'], 'transform', `scaleX(${Math.max(0, Math.min(1, h.progress)).toFixed(3)})`);
     setStyle(E.speed, 'opacity', '0');
     audio.setTension(0);
+    // le murmure du bord grossit avec l'elan : le public sent le saut venir
+    audio.setCrowd(0.22 + 0.4 * Math.max(0, Math.min(1, h.progress)));
     return;
   }
   if (h.phase === 'fly') {
@@ -760,6 +769,8 @@ function updateHud(dt) {
       setClass(E.level, 'on', false);
     }
     audio.setWind(0.15 + sp * 0.85 + Math.abs(h.wind || 0) * 0.35);
+    // le corps prend le vide : le bord retient son souffle, le vent seul parle
+    audio.setCrowd(0.06, true);
     setStyle(E.vignette, 'opacity', (0.35 + sp * 0.85).toFixed(2));
     setStyle(E.speed, 'opacity', (h.tucked ? 0 : sp * sp * 0.9 * motionScale()).toFixed(2));
     return;
@@ -769,6 +780,7 @@ function updateHud(dt) {
   setPrompt('', false);
   audio.setWind(0);
   audio.setTension(0);
+  audio.setCrowd(0, true);
   setStyle(E.vignette, 'opacity', '1');
   setStyle(E.speed, 'opacity', '0');
 }
@@ -796,9 +808,34 @@ function motionScale() { return reduced() ? 0.25 : 1; }
 /* ---------- retour haptique ---------- */
 // navigator.vibrate manque sur desktop et sur iOS : on sort sans bruit.
 // Le bouton du son commande aussi la vibration, c'est le meme reflexe de discretion.
+// La manette vibre elle aussi (dual-rumble) : le meme pattern, traduit. Sur le
+// jeu comme sur mobile, l'impact frappe, la note caresse, le plat claque.
+function padActuator() {
+  const all = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const g of all) if (g && g.connected && g.vibrationActuator && typeof g.vibrationActuator.playEffect === 'function')
+    return g.vibrationActuator;
+  return null;
+}
+function rumblePad(pattern) {
+  const act = padActuator();
+  if (!act) return;
+  const seq = typeof pattern === 'number' ? [pattern] : pattern;
+  let t = 0;
+  for (let i = 0; i < seq.length; i += 2) {
+    const dur = seq[i];
+    // plus le pattern frappe longtemps, plus il appuie : le decollage chatouille,
+    // l'impact a plat secoue la manette entiere
+    const mag = Math.min(1, 0.35 + dur / 160);
+    setTimeout(() => {
+      try { act.playEffect('dual-rumble', { duration: dur, strongMagnitude: mag, weakMagnitude: mag * 0.75 }); } catch { }
+    }, t);
+    t += dur + (seq[i + 1] || 0);
+  }
+}
 function buzz(pattern) {
-  if (save.muted || typeof navigator.vibrate !== 'function') return;
-  try { navigator.vibrate(pattern); } catch { }
+  if (save.muted) return;
+  if (typeof navigator.vibrate === 'function') { try { navigator.vibrate(pattern); } catch { } }
+  rumblePad(pattern);
 }
 
 /* ---------- pause ---------- */
@@ -815,7 +852,7 @@ function setPause(v) {
   if (autoPaused === v) return;
   autoPaused = v;
   if (v) {
-    audio.setWind(0); audio.setTension(0);
+    audio.setWind(0); audio.setTension(0); audio.setCrowd(0, true);
     // Le doigt n'est plus sur l'ecran au retour : le corps reste ouvert, et il faudra
     // reappuyer pour reprendre la main. Reprendre sur un lacher fermerait le saut.
     const holding = jump && jump.state === 'fly' && !jump.tucked;
@@ -1105,6 +1142,9 @@ window.__dods = {
   press: () => onPress(null), down: () => onPress(null), up: () => onRelease(null),
   get jump() { return jump; }, get world() { return world; }, camera, renderer,
   get state() { return state; }, get owner() { return owner; }, get held() { return [...held]; }, get autoPaused() { return autoPaused; },
+  // la couche sonore expose son etat pose (probe) : le harnais ecrit les regles
+  // audio sans dependre d'un contexte AudioContext actif
+  get audio() { return audio; },
   show, startRun, openBrief, quality, spots: SPOTS,
   autoJump: null, autoTuck: null, autoSteer: false, autoSteerX: null, autoSteerRaw: null,
   paused: false, slowmo: true, render: true,
