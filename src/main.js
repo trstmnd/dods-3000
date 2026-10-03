@@ -17,7 +17,7 @@ import { DESKTOP, ACH, achieve, quit } from './platform.js';
 const $ = s => document.querySelector(s);
 // Les textes fixes de index.html passent dans la langue choisie avant toute autre ecriture du DOM.
 applyStatic();
-export const VERSION = 'v4.3';
+export const VERSION = 'v4.4';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';

@@ -400,6 +400,59 @@ boucle d'essais reste courte (même règle que la carte) ; les flèches
 tournent l'angle en relecture et ne pilotent plus la planche, un écran, un
 sens.
 
+## La v4.4 : les défis et la progression (03/10/2026)
+
+Objectif du bloc 5 du brief v4 : une raison de revenir, hauteur après
+hauteur. Ce qui a été livré :
+
+- `src/defis.js` : les défis sont des données, calibrées par spot. Trois par
+  hauteur : fermer dans la fenêtre parfaite, réussir une forme d'entrée, une
+  gerbe au seuil de la force réellement mesurée à cette hauteur. Ils ne
+  lisent que des grandeurs déjà mesurées par le saut (grade, forme d'entrée,
+  power de la gerbe), même règle que la grille des juges : la progression ne
+  juge rien que le jeu ne mesure déjà ;
+- deux défis ouvrent le spot suivant (le troisième est de la maîtrise, pas
+  de l'accès). Les cartes fermées portent cadenas, condition d'ouverture et
+  les points du spot qui les ouvre ; la fiche liste les trois défis cochés
+  ou à faire ; les flèches sautent les cartes fermées. Un record posé avant
+  la v4.4 vaut déblocage : les joueurs de la v3 gardent leurs hauteurs ;
+- un plat ne coche rien : la progression ne récompense pas l'écrasement ;
+- `main.js` : `checkDefis()` coche les cases à la carte des juges, toast des
+  libellés et callout de déblocage. Le toast et le callout passent en
+  `position:fixed` au-dessus des cartes (z-index du HUD) : ils tombent
+  pendant que la carte s'affiche et restent lisibles, la pastille descend
+  sous un callout levé pour ne pas s'écrire sur lui ;
+- `tools/defis.mjs` : le test du bloc, 16 portes ; `tools/bloc5-video.mjs` :
+  la vidéo du bloc.
+
+Mesuré et vérifié :
+
+- `tools/defis.mjs` : 16 portes PASS, jouées par le vrai chemin (clics sur
+  les cartes, vrais événements pointeur pour la réception). Le saut
+  d'ouverture coche fermeture parfaite et entrée sans les mains d'un coup
+  (toast des libellés, callout « Rick's Cafe DÉBLOQUÉ »), une fermeture
+  GREAT passe le seuil de gerbe lu dans la page depuis le module (power
+  0,772 >= seuil), un plat ne coche rien, la fiche et les points survivent au
+  rechargement, un record d'avant la v4.4 débloque son spot, les flèches
+  sautent les fermées ;
+- `check.sh` 46 OK ;
+- gauntlet : 16 portes, 2 FAIL (manette, hearth), les limites VPS
+  documentées depuis les blocs 1 et 2 ;
+- CPU (rendu coupé, VPS 2 cœurs, i/s à mesurer sur le Mac) : 0,077 ms de
+  logique par image (0,082 au bloc 4 : les défis ne coûtent rien dans la
+  boucle, ils ne courent qu'à la carte) ;
+- vidéo 20 s relue image par image (1 img/s sur planches contact) :
+  liste fermée, fiche et ses trois défis, saut piloté, carte avec toast et
+  callout de déblocage, liste à 3/3 et spot ouvert, saut du spot neuf,
+  aucun écran noir, pas de clipping à l'eau.
+
+Arbitrages du bloc : les seuils se calibrent sur les vraies fenêtres
+(`windows()`), « ferme sous 1 m » du brief vaut ttc 0,065 s à 10 m, sous
+`perfectLo`, un smack garanti à toutes les hauteurs : la fenêtre en distance
+aurait reproduit l'invariant 1 ; deux défis ouvrent, pas trois, pour que le
+troisième reste un choix ; le déblocage d'un record d'avant la v4.4 évite de
+reprendre à un joueur ce qu'il avait déjà.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet
