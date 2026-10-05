@@ -17,7 +17,7 @@ import { DESKTOP, ACH, achieve, quit } from './platform.js';
 const $ = s => document.querySelector(s);
 // Les textes fixes de index.html passent dans la langue choisie avant toute autre ecriture du DOM.
 applyStatic();
-export const VERSION = 'v4.4';
+export const VERSION = 'v4.5';
 const JUMPS_PER_RUN = 3;
 // Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
@@ -116,10 +116,13 @@ function checkDefis(res) {
   const done = [];
   for (const df of defisFor(spot))
     if (!st[df.key] && defiDone(df, res)) { st[df.key] = 1; done.push(defiLabel(df)); }
-  if (done.length) toast(t('defi.done', { label: done.join(' · ') }));
+  if (done.length) { toast(t('defi.done', { label: done.join(' · ') })); audio.tick(3); }
   // un seul saut peut cocher deux defis d'un coup : le basculement se lit avant/apres
-  if (next < SPOTS.length && before < UNLOCK_NEED && defisDone(spot) >= UNLOCK_NEED)
+  if (next < SPOTS.length && before < UNLOCK_NEED && defisDone(spot) >= UNLOCK_NEED) {
     callout(t('unlock.spot', { name: SPOTS[next].name }), '#ffd447');
+    // la hauteur qui s'ouvre se sent dans la main : l'ovation couvre deja l'oreille
+    buzz([25, 60, 25, 60, 45]);
+  }
   return done;
 }
 
