@@ -453,6 +453,58 @@ aurait reproduit l'invariant 1 ; deux défis ouvrent, pas trois, pour que le
 troisième reste un choix ; le déblocage d'un record d'avant la v4.4 évite de
 reprendre à un joueur ce qu'il avait déjà.
 
+## La v4.5 : la version sonore (05/10/2026)
+
+Objectif du bloc 6 du brief v4 : un son qui monte avec la chute, une foule
+au bord, un impact qui descend dans le corps, une manette qui vibre. Ce qui
+a été livré :
+
+- `src/audio.js` : le vent suit la vitesse de chute, le souffle s'ouvre vers
+  l'aigu (300 à 1200 Hz) et un sifflement s'y ajoute au-delà des deux tiers
+  de la vitesse ; la foule du bord grossit son murmure pendant l'élan, retient
+  son souffle en vol, puis ovationne ou lâche un ohhh déçu une demi-seconde
+  après la gerbe, dosés par la moyenne des juges (`cheer(mark, dead)`) ;
+  l'impact : un sub dosé par la puissance mesurée, une claque sèche à plat,
+  un clapot qui retombe, un écho court de falaise, et l'oreille étouffée sous
+  l'eau une demi-seconde avant que le monde rouvre (lowpass maître
+  `muffle()`) ;
+- le replay rejoue le plouf mais pas la clameur : une foule ne s'excite pas
+  deux fois du même saut ;
+- la manette : vibration dual-rumble au décollage, à la fermeture et à l'eau
+  dosée par la puissance, plus longue et plus forte à plat (`rumblePad`) ; le
+  bouton muet coupe aussi la vibration, même réflexe de discrétion que le son ;
+- `probe()` expose l'état posé : le harnais vérifie les règles sonores sans
+  rien écouter, un contexte suspendu en headless ne change rien aux valeurs ;
+- finitions : le toast des défis tick, le callout de déblocage vibre dans la
+  main ;
+- `tools/son.mjs` : le test du bloc, 16 portes ; `tools/bloc6-video.mjs` : la
+  vidéo du bloc, qui rend visible l'invisible : un panneau « état sonore »
+  incrusté dans le HUD lit `probe()` et les vibrations dual-rumble d'une
+  manette simulée, barre par barre, image par image.
+
+Mesuré et vérifié :
+
+- `tools/son.mjs` : 16 portes PASS, jouées sans jamais écouter (murmure de
+  l'élan, souffle coupé en vol, vent qui s'ouvre et siffle, sub dosé par la
+  puissance, étouffement sous l'eau puis réouverture, ovation à 9,4, ohhh
+  déçu sur un plat, replay sans clameur, dual-rumble aux trois moments,
+  bouton muet qui coupe la manette) ;
+- `check.sh` 46 OK ;
+- gauntlet : 16 portes, 14 PASS, les 2 FAIL connus du VPS (manette : le
+  harnais plante sous rendu lent, échec identique sur des runs antérieurs au
+  bloc 6 ; hearth : aucun report.json sous swiftshader) ;
+- CPU (rendu coupé) : 0,039 ms de logique par image (bloc 5 : 0,077) ;
+- vidéo 20 s 1080p 30 i/s relue image par image, 4 captures : vent 1,14 à
+  1330 Hz et sifflet 0,76 lus en chute, ovation 9,4 et oreille étouffée à
+  l'impact, ohhh déçu et sub 0,99 au plat, aucun écran noir.
+
+Arbitrages du bloc : la clameur part à l'instant de l'impact (la foule réagit
+au saut, pas aux cartons) et l'ovation dure environ 2,7 s, elle s'éteint donc
+avant la fin de la cascade des juges : le panneau de la vidéo montre cette
+queue décroissante telle quelle plutôt que de tricher ; le saut de
+démonstration est forcé au spot le plus haut, le seul où le sifflement parle ;
+le panneau état sonore est un outil de vidéo, le jeu livré ne le porte pas.
+
 ## Mes erreurs, pour ne pas les refaire
 
 **La crevette n'est pas un pli, c'est une boule.** J'ai lu « hands and feet meet
