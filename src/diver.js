@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { t } from './i18n.js';
 
 // Le plongeur est un vrai personnage : une peau continue et lissee, deformee par un
 // squelette, et non plus un assemblage de capsules qui se croisent aux articulations.
@@ -11,10 +12,12 @@ import * as THREE from 'three';
 // Le cout est paye une fois au chargement : la geometrie est mise en cache et clonee
 // pour chaque run, ce qui laisse disposeTree() liberer le clone sans vider le cache.
 
-const SKIN = 0xf0b58a, SUIT = 0xff3f56, SUIT2 = 0x1b2a4a, HAIR = 0x2b1d17;
+const SKIN = 0xf0b58a, SUIT = 0xff3f56, SUIT2 = 0x1b2a4a, HAIR = 0x2b1d17, STRIPE = 0xf3efe6;
 
 // Squelette au repos, dans le repere du root : les pieds sont a y = 0.
 // Les positions locales reprennent celles de l'ancien rig, donc les poses ne bougent pas.
+// Les chevilles (ank) ne bougent pas la jambe : elles portent le pied seul, pour la
+// pointe tendue du dods et le talon ramene aux fesses de la crevette.
 const BONES = [
   { name: 'body', parent: null, pos: [0, 1.32, 0] },
   { name: 'neck', parent: 'body', pos: [0, 0.82, 0] },
@@ -24,17 +27,21 @@ const BONES = [
   { name: 'elR', parent: 'shR', pos: [0, -0.56, 0] },
   { name: 'hipL', parent: 'body', pos: [-0.15, 0.08, 0] },
   { name: 'knL', parent: 'hipL', pos: [0, -0.66, 0] },
+  { name: 'ankL', parent: 'knL', pos: [0, -0.66, 0] },
   { name: 'hipR', parent: 'body', pos: [0.15, 0.08, 0] },
-  { name: 'knR', parent: 'hipR', pos: [0, -0.66, 0] }
+  { name: 'knR', parent: 'hipR', pos: [0, -0.66, 0] },
+  { name: 'ankR', parent: 'knR', pos: [0, -0.66, 0] }
 ];
 
 // Le corps : des troncs de cone fondus. `bone` dit qui commande ce morceau, ce qui sert
 // a la fois aux poids du skinning et a la couleur.
 function parts() {
   const p = [
-    { a: [0, 1.42, 0], b: [0, 1.93, 0], ra: 0.228, rb: 0.268, bone: 'body' },
-    { a: [-0.30, 2.04, 0], b: [0.30, 2.04, 0], ra: 0.152, rb: 0.152, bone: 'body' },
-    { a: [0, 2.02, 0], b: [0, 2.26, 0], ra: 0.090, rb: 0.080, bone: 'neck' },
+    // Le torse se resserre a la taille avant de s'ouvrir sur la poitrine : silhouette
+    // d'athlete, pas de baton habille. Vu de si loin, ces 2 cm changent la lecture.
+    { a: [0, 1.42, 0], b: [0, 1.95, 0], ra: 0.215, rb: 0.262, bone: 'body' },
+    { a: [-0.32, 2.05, 0], b: [0.32, 2.05, 0], ra: 0.148, rb: 0.148, bone: 'body' },
+    { a: [0, 2.02, 0], b: [0, 2.26, 0], ra: 0.088, rb: 0.078, bone: 'neck' },
     { a: [0, 2.38, 0.012], b: [0, 2.50, 0], ra: 0.200, rb: 0.184, bone: 'neck' }
   ];
   for (const s of [-1, 1]) {
@@ -43,12 +50,12 @@ function parts() {
       // Les bras sont ecartes du torse : colles a lui, la peau se soude et tend une palme
       // entre le buste et le bras des que la croix s'ouvre. L'os reste a sa place, un peu
       // en dedans du deltoide, comme une vraie articulation d'epaule.
-      { a: [s * 0.40, 2.08, 0], b: [s * 0.41, 1.54, 0], ra: 0.098, rb: 0.085, bone: 'sh' + t },
-      { a: [s * 0.41, 1.54, 0], b: [s * 0.42, 1.06, 0], ra: 0.085, rb: 0.062, bone: 'el' + t },
-      { a: [s * 0.42, 1.05, 0], b: [s * 0.42, 0.93, 0.02], ra: 0.072, rb: 0.052, bone: 'el' + t },
-      { a: [s * 0.15, 1.40, 0], b: [s * 0.16, 0.76, 0], ra: 0.145, rb: 0.112, bone: 'hip' + t },
-      { a: [s * 0.16, 0.76, 0], b: [s * 0.15, 0.12, 0], ra: 0.112, rb: 0.062, bone: 'kn' + t },
-      { a: [s * 0.15, 0.075, 0], b: [s * 0.15, 0.05, 0.20], ra: 0.066, rb: 0.046, bone: 'kn' + t }
+      { a: [s * 0.40, 2.10, 0], b: [s * 0.41, 1.54, 0], ra: 0.102, rb: 0.086, bone: 'sh' + t },
+      { a: [s * 0.41, 1.54, 0], b: [s * 0.42, 1.08, 0], ra: 0.082, rb: 0.058, bone: 'el' + t },
+      { a: [s * 0.42, 1.06, 0], b: [s * 0.42, 0.95, 0.02], ra: 0.068, rb: 0.050, bone: 'el' + t },
+      { a: [s * 0.155, 1.40, 0], b: [s * 0.16, 0.78, 0], ra: 0.158, rb: 0.128, bone: 'hip' + t },
+      { a: [s * 0.16, 0.78, 0], b: [s * 0.15, 0.14, 0], ra: 0.124, rb: 0.068, bone: 'kn' + t },
+      { a: [s * 0.15, 0.11, -0.02], b: [s * 0.15, 0.06, 0.21], ra: 0.056, rb: 0.044, bone: 'ank' + t }
     );
   }
   return p;
@@ -56,7 +63,7 @@ function parts() {
 
 const PARTS = parts();
 const BOUNDS = { lo: [-0.58, -0.06, -0.44], hi: [0.58, 2.80, 0.44] };
-const STEP = 0.034;
+const STEP = 0.028;
 const BLEND = 0.042; // fusion des morceaux : trop haute, les membres se soudent au buste
 
 // Distance a un tronc de cone. Ce n'est pas la distance exacte, mais la surface de niveau
@@ -183,8 +190,12 @@ function colorFor(x, y, z, bone) {
     if (y > 2.49 || (y > 2.38 && z < -0.05)) return HAIR;
     return SKIN;
   }
-  if (bone === 'body') return y > 1.56 ? SUIT : SUIT2;
-  if (bone === 'hipL' || bone === 'hipR') return y > 1.06 ? SUIT2 : SKIN;
+  if (bone === 'body') {
+    // la rayure du maillot, sur la poitrine : de loin c'est elle qui signe le personnage
+    if (y > 1.87 && y < 1.93) return STRIPE;
+    return y > 1.56 ? SUIT : SUIT2;
+  }
+  if (bone === 'hipL' || bone === 'hipR') return y > 0.98 ? SUIT2 : SKIN;
   return SKIN;
 }
 
@@ -281,13 +292,21 @@ export function createDiver() {
   };
   tip('elL', 0, -0.54, 0); tip('elR', 0, -0.54, 0);
   tip('knL', 0, -0.70, 0.06); tip('knR', 0, -0.70, 0.06);
+  tip('ankL', 0, -0.05, 0.21); tip('ankR', 0, -0.05, 0.21);
   tip('body', 0, 0.50, 0.20); tip('neck', 0, 0.30, 0);
 
   root.updateMatrixWorld(true); // pose de repos : c'est elle qui sert de reference au skinning
   const skeleton = new THREE.Skeleton(bones);
-  const mesh = new THREE.SkinnedMesh(bodyGeometry(order), new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.64, metalness: 0.02
-  }));
+  const skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.64, metalness: 0.02 });
+  // Un liseré de lumière sur la silhouette : contre une mer ou une falaise de même valeur,
+  // le plongeur se détache sans qu'on force son éclairage.
+  skinMat.onBeforeCompile = sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
+      float rimF = 1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0);
+      gl_FragColor.rgb += pow(rimF, 3.0) * 0.32 * vec3(1.0, 0.94, 0.82);`);
+  };
+  skinMat.customProgramCacheKey = () => 'diver-rim';
+  const mesh = new THREE.SkinnedMesh(bodyGeometry(order), skinMat);
   mesh.castShadow = true;
   root.add(mesh);
   mesh.bind(skeleton, new THREE.Matrix4());
@@ -311,40 +330,47 @@ export function createDiver() {
 
 // Une pose = rotations en radians. Les cles absentes retournent a zero.
 export const POSES = {
-  stand: { shL: [0, 0, 0.12], shR: [0, 0, -0.12], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [0, 0, 0.04], hipR: [0, 0, -0.04], knL: [0.05, 0, 0], knR: [0.05, 0, 0], body: [0, 0, 0] },
-  ready: { shL: [-0.5, 0, 0.35], shR: [-0.5, 0, -0.35], elL: [-0.7, 0, 0.1], elR: [-0.7, 0, -0.1], hipL: [0.35, 0, 0.06], hipR: [0.35, 0, -0.06], knL: [-0.6, 0, 0], knR: [-0.6, 0, 0], body: [0.22, 0, 0] },
-  // Le vol : bras ET jambes tendus, corps etire et cambre. C'est l'etoile du dods,
-  // tenue le plus longtemps possible, pas une position de plongeon.
-  dods: { shL: [0, 0, 1.72], shR: [0, 0, -1.72], elL: [0, 0, 0.06], elR: [0, 0, -0.06], hipL: [-0.12, 0, 0.32], hipR: [-0.12, 0, -0.32], knL: [0.04, 0, 0], knR: [0.04, 0, 0], neck: [-0.28, 0, 0], body: [-0.3, 0, 0] },
+  stand: { shL: [0, 0, 0.12], shR: [0, 0, -0.12], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [0, 0, 0.04], hipR: [0, 0, -0.04], knL: [0.05, 0, 0], knR: [0.05, 0, 0], ankL: [0.06, 0, 0], ankR: [0.06, 0, 0], body: [0, 0, 0] },
+  ready: { shL: [-0.5, 0, 0.35], shR: [-0.5, 0, -0.35], elL: [-0.7, 0, 0.1], elR: [-0.7, 0, -0.1], hipL: [0.35, 0, 0.06], hipR: [0.35, 0, -0.06], knL: [-0.6, 0, 0], knR: [-0.6, 0, 0], ankL: [0.5, 0, 0], ankR: [0.5, 0, 0], body: [0.22, 0, 0] },
+  // Le vol : bras ET jambes tendus, corps etire et cambre, pieds en pointe qui
+  // prolongent la ligne des jambes. C'est l'etoile du dods, tenue le plus longtemps
+  // possible, pas une position de plongeon. Le grand ecart se lit de loin.
+  dods: { shL: [0, 0, 1.78], shR: [0, 0, -1.78], elL: [0, 0, 0.04], elR: [0, 0, -0.04], hipL: [-0.1, 0, 0.46], hipR: [-0.1, 0, -0.46], knL: [0.02, 0, 0], knR: [0.02, 0, 0], ankL: [-1.25, 0, 0], ankR: [-1.25, 0, 0], neck: [-0.34, 0, 0], body: [-0.36, 0, 0] },
   // La crevette : le corps se recroqueville d'un coup, genoux dans la poitrine, talons
   // aux fesses, bras qui viennent chercher les jambes, menton rentre. Mains et pieds
   // touchent l'eau ensemble. C'est le nom qui le dit : la forme d'une crevette.
-  shrimp: { shL: [-1.55, 0, 0.35], shR: [-1.55, 0, -0.35], elL: [-1.95, 0, 0.15], elR: [-1.95, 0, -0.15], hipL: [-2.45, 0, 0.15], hipR: [-2.45, 0, -0.15], knL: [2.45, 0, 0], knR: [2.45, 0, 0], neck: [0.6, 0, 0], body: [0.45, 0, 0] },
+  shrimp: { shL: [-1.55, 0, 0.35], shR: [-1.55, 0, -0.35], elL: [-2.05, 0, 0.15], elR: [-2.05, 0, -0.15], hipL: [-2.5, 0, 0.15], hipR: [-2.5, 0, -0.15], knL: [2.5, 0, 0], knR: [2.5, 0, 0], ankL: [-1.35, 0, 0], ankR: [-1.35, 0, 0], neck: [0.6, 0, 0], body: [0.5, 0, 0] },
   // La balle : la meme chose en plus serre, coudes colles aux genoux.
-  bullet: { shL: [-2.0, 0, 0.45], shR: [-2.0, 0, -0.45], elL: [-2.5, 0, 0.2], elR: [-2.5, 0, -0.2], hipL: [-2.6, 0, 0.14], hipR: [-2.6, 0, -0.14], knL: [2.7, 0, 0], knR: [2.7, 0, 0], neck: [0.5, 0, 0], body: [0.6, 0, 0] },
+  bullet: { shL: [-2.0, 0, 0.45], shR: [-2.0, 0, -0.45], elL: [-2.5, 0, 0.2], elR: [-2.5, 0, -0.2], hipL: [-2.6, 0, 0.14], hipR: [-2.6, 0, -0.14], knL: [2.7, 0, 0], knR: [2.7, 0, 0], ankL: [-1.4, 0, 0], ankR: [-1.4, 0, 0], neck: [0.5, 0, 0], body: [0.6, 0, 0] },
   // Sans les mains : recroqueville aussi, mais bras ouverts sur les cotes. Ce sont les
   // genoux et la tete qui touchent.
-  nohands: { shL: [-0.3, 0, 1.2], shR: [-0.3, 0, -1.2], elL: [-0.35, 0, 0.25], elR: [-0.35, 0, -0.25], hipL: [-2.45, 0, 0.14], hipR: [-2.45, 0, -0.14], knL: [2.5, 0, 0], knR: [2.5, 0, 0], neck: [0.95, 0, 0], body: [0.55, 0, 0] },
+  nohands: { shL: [-0.3, 0, 1.2], shR: [-0.3, 0, -1.2], elL: [-0.35, 0, 0.25], elR: [-0.35, 0, -0.25], hipL: [-2.45, 0, 0.14], hipR: [-2.45, 0, -0.14], knL: [2.5, 0, 0], knR: [2.5, 0, 0], ankL: [-1.3, 0, 0], ankR: [-1.3, 0, 0], neck: [0.95, 0, 0], body: [0.55, 0, 0] },
+  // Le grab : les mains vont chercher les tibias pendant que les jambes restent tendues
+  // et ecartees. C'est la figure classic du dodsing : on la tient, on la montre, elle
+  // dit que l'athlete sait ou il est.
+  grab: { shL: [-2.15, 0, 0.18], shR: [-2.15, 0, -0.18], elL: [-0.5, 0, 0.05], elR: [-0.5, 0, -0.05], hipL: [-0.2, 0, 0.3], hipR: [-0.2, 0, -0.3], knL: [0.15, 0, 0], knR: [0.15, 0, 0], ankL: [-1.25, 0, 0], ankR: [-1.25, 0, 0], neck: [0.5, 0, 0], body: [0.45, 0, 0] },
   // Ferme trop tot : la boule se fait mais sans tenue, bras qui trainent, corps mou.
-  ball: { shL: [-1.4, 0, 0.9], shR: [-1.4, 0, -0.9], elL: [-1.6, 0, 0.35], elR: [-1.6, 0, -0.35], hipL: [-2.3, 0, 0.24], hipR: [-2.3, 0, -0.24], knL: [2.2, 0, 0], knR: [2.2, 0, 0], neck: [0.4, 0, 0], body: [0.5, 0, 0] },
-  pike: { shL: [-2.9, 0, 0.3], shR: [-2.9, 0, -0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], hipL: [1.9, 0, 0.12], hipR: [1.9, 0, -0.12], knL: [-0.15, 0, 0], knR: [-0.15, 0, 0], body: [0.3, 0, 0] },
-  flail: { shL: [-1.2, 0, 2.1], shR: [-2.4, 0, -1.3], elL: [-1.6, 0, 0.4], elR: [-0.6, 0, -0.9], hipL: [-0.9, 0, 0.6], hipR: [0.7, 0, -0.35], knL: [-1.4, 0, 0], knR: [-0.4, 0, 0], body: [0.1, 0.4, 0.25] }
+  ball: { shL: [-1.4, 0, 0.9], shR: [-1.4, 0, -0.9], elL: [-1.6, 0, 0.35], elR: [-1.6, 0, -0.35], hipL: [-2.3, 0, 0.24], hipR: [-2.3, 0, -0.24], knL: [2.2, 0, 0], knR: [2.2, 0, 0], ankL: [-1.3, 0, 0], ankR: [-1.3, 0, 0], neck: [0.4, 0, 0], body: [0.5, 0, 0] },
+  pike: { shL: [-2.9, 0, 0.3], shR: [-2.9, 0, -0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], hipL: [1.9, 0, 0.12], hipR: [1.9, 0, -0.12], knL: [-0.15, 0, 0], knR: [-0.15, 0, 0], ankL: [-1.3, 0, 0], ankR: [-1.3, 0, 0], body: [0.3, 0, 0] },
+  flail: { shL: [-1.2, 0, 2.1], shR: [-2.4, 0, -1.3], elL: [-1.6, 0, 0.4], elR: [-0.6, 0, -0.9], hipL: [-0.9, 0, 0.6], hipR: [0.7, 0, -0.35], knL: [-1.4, 0, 0], knR: [-0.4, 0, 0], ankL: [0.4, 0, 0], ankR: [-0.6, 0, 0], body: [0.1, 0.4, 0.25] }
 };
 
 // Les trois entrees valides du dodsing, plus les deux ratees. `pitch` est l'inclinaison
 // du corps a l'entree : c'est elle qui decide de ce qui touche l'eau en premier.
 // Source : criteres de jugement de la Dods Diving League.
 export const LANDINGS = {
-  shrimp: { pose: 'shrimp', pitch: 1.95, label: 'CREVETTE', note: 'mains et pieds ensemble' },
-  bullet: { pose: 'bullet', pitch: 2.15, label: 'BALLE', note: 'genoux et coudes ensemble' },
-  nohands: { pose: 'nohands', pitch: 2.05, label: 'SANS LES MAINS', note: 'genoux et tête ensemble' },
-  ball: { pose: 'ball', pitch: 2.3, label: 'BOULE', note: 'refermé trop tôt, aucune forme' },
-  flat: { pose: 'flail', pitch: 1.52, label: 'À PLAT', note: 'le ventre a tout pris' }
+  shrimp: { pose: 'shrimp', pitch: 1.95, label: t('landing.shrimp.label'), note: t('landing.shrimp.note') },
+  bullet: { pose: 'bullet', pitch: 2.15, label: t('landing.bullet.label'), note: t('landing.bullet.note') },
+  nohands: { pose: 'nohands', pitch: 2.05, label: t('landing.nohands.label'), note: t('landing.nohands.note') },
+  ball: { pose: 'ball', pitch: 2.3, label: t('landing.ball.label'), note: t('landing.ball.note') },
+  flat: { pose: 'flail', pitch: 1.52, label: t('landing.flat.label'), note: t('landing.flat.note') }
 };
 
 const TMP = new THREE.Euler();
 export function applyPose(joints, pose, blend = 1, extra = null) {
-  for (const key of Object.keys(joints)) {
+  // la liste des articulations est figee : calculee une fois, pas a chaque image
+  const keys = joints.__keys || Object.defineProperty(joints, '__keys', { value: Object.keys(joints) }).__keys;
+  for (const key of keys) {
     const target = (extra && extra[key]) || pose[key] || [0, 0, 0];
     const j = joints[key];
     TMP.set(target[0], target[1], target[2]);
@@ -354,15 +380,69 @@ export function applyPose(joints, pose, blend = 1, extra = null) {
   }
 }
 
-// Cycle de course : on surcharge les membres par-dessus la pose 'stand'.
+// Cycle de course : on surcharge les membres par-dessus la pose 'stand'. Un seul objet
+// reecrit a chaque image : la course ne produit plus de dechets pour le ramasse-miettes.
+const RUN = { shL: [0, 0, 0.18], shR: [0, 0, -0.18], elL: [0, 0, 0.1], elR: [0, 0, -0.1], hipL: [0, 0, 0.05], hipR: [0, 0, -0.05], knL: [0, 0, 0], knR: [0, 0, 0], ankL: [0, 0, 0], ankR: [0, 0, 0], body: [0, 0, 0] };
 export function runPose(t, speed = 1) {
   const p = t * 9 * speed;
   const s = Math.sin(p), c = Math.sin(p + Math.PI);
-  return {
-    shL: [c * 0.9, 0, 0.18], shR: [s * 0.9, 0, -0.18],
-    elL: [-0.9 - Math.max(0, c) * 0.5, 0, 0.1], elR: [-0.9 - Math.max(0, s) * 0.5, 0, -0.1],
-    hipL: [s * 0.95, 0, 0.05], hipR: [c * 0.95, 0, -0.05],
-    knL: [-0.35 - Math.max(0, -s) * 1.4, 0, 0], knR: [-0.35 - Math.max(0, -c) * 1.4, 0, 0],
-    body: [0.14 + Math.abs(s) * 0.05, 0, 0]
-  };
+  RUN.shL[0] = c * 0.9; RUN.shR[0] = s * 0.9;
+  RUN.elL[0] = -0.9 - Math.max(0, c) * 0.5; RUN.elR[0] = -0.9 - Math.max(0, s) * 0.5;
+  RUN.hipL[0] = s * 0.95; RUN.hipR[0] = c * 0.95;
+  RUN.knL[0] = -0.35 - Math.max(0, -s) * 1.4; RUN.knR[0] = -0.35 - Math.max(0, -c) * 1.4;
+  RUN.ankL[0] = 0.1 + Math.max(0, s) * 0.55; RUN.ankR[0] = 0.1 + Math.max(0, c) * 0.55;
+  RUN.body[0] = 0.14 + Math.abs(s) * 0.05;
+  return RUN;
+}
+
+// Le vol n'est pas une statue : le vent trote sur la croix, les jambes cisaillent a
+// peine, le buste ondule. Ce sont ces 2 degres de vie qui font la difference entre une
+// pose figee et un athlete qui tient son dods. Meme discipline que la course : un seul
+// objet, reecrit sur place, rien a allouer dans la boucle chaude.
+const FLIGHT = {
+  shL: [0, 0, 1.78], shR: [0, 0, -1.78], elL: [0, 0, 0], elR: [0, 0, 0],
+  hipL: [-0.1, 0, 0.46], hipR: [-0.1, 0, -0.46], knL: [0, 0, 0], knR: [0, 0, 0],
+  ankL: [-1.25, 0, 0], ankR: [-1.25, 0, 0], body: [-0.36, 0, 0]
+};
+export function flightPose(t) {
+  const a = Math.sin(t * 7.3), b = Math.sin(t * 9.1 + 1.7), k = Math.sin(t * 3.1);
+  FLIGHT.shL[2] = 1.78 + a * 0.055;
+  FLIGHT.shR[2] = -1.78 - a * 0.055;
+  FLIGHT.elL[2] = 0.04 + b * 0.03;
+  FLIGHT.elR[2] = -0.04 - b * 0.03;
+  FLIGHT.hipL[2] = 0.46 + k * 0.045;
+  FLIGHT.hipR[2] = -0.46 - k * 0.045;
+  FLIGHT.knL[0] = 0.02 + b * 0.03;
+  FLIGHT.knR[0] = 0.02 - b * 0.03;
+  FLIGHT.body[2] = Math.sin(t * 1.9) * 0.035;
+  return FLIGHT;
+}
+
+// Le plat qui claque : sur un saut rate, le corps ne se pose pas, il rebondit et
+// se desarticule. Chaque articulation oscille sur sa propre frequence, amortie en
+// une petite seconde : un ragdoll sans physique, entierement determine par le temps
+// ecoule depuis l'impact (le meme rate rejoue le meme raté, comme les rafales).
+// Meme discipline que la course et le vol : un seul objet, reecrit sur place.
+const RAG = {
+  shL: [0, 0, 0], shR: [0, 0, 0], elL: [0, 0, 0], elR: [0, 0, 0],
+  hipL: [0, 0, 0], hipR: [0, 0, 0], knL: [0, 0, 0], knR: [0, 0, 0],
+  ankL: [0, 0, 0], ankR: [0, 0, 0], neck: [0, 0, 0], body: [0, 0, 0]
+};
+// [frequence, phase, amplitude] par articulation : les membres flottent plus que le buste.
+const RAGF = {
+  shL: [10.3, 0.4, 0.75], shR: [9.1, 1.9, 0.75], elL: [12.7, 2.6, 0.85], elR: [11.6, 4.1, 0.85],
+  hipL: [8.4, 1.1, 0.6], hipR: [7.9, 3.3, 0.6], knL: [13.2, 0.9, 0.95], knR: [12.1, 2.2, 0.95],
+  ankL: [15.1, 1.4, 0.5], ankR: [14.3, 3.0, 0.5], neck: [9.7, 2.8, 0.4], body: [6.3, 0.2, 0.3]
+};
+export function ragdollPose(t, power = 1) {
+  const e = Math.exp(-t * 2.2) * Math.min(1.4, power);
+  for (const k in RAGF) {
+    const f = RAGF[k][0], p = RAGF[k][1], a = RAGF[k][2] * e;
+    const base = POSES.flail[k] || [0, 0, 0];
+    const o = Math.sin(t * f + p) * a;
+    RAG[k][0] = base[0] + o;
+    RAG[k][1] = base[1] + o * 0.35;
+    RAG[k][2] = base[2] + Math.sin(t * f * 0.8 + p * 1.7) * a * 0.55;
+  }
+  return RAG;
 }

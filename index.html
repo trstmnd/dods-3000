@@ -12,15 +12,18 @@
 <canvas id="scene"></canvas>
 
 <div id="vignette"></div>
+<div id="speed"></div>
 <div id="flash"></div>
+<div id="fade"></div>
 
 <!-- TITRE -->
 <section id="s-title" class="screen">
   <div class="title-wrap">
     <h1 class="logo">DODS<span>3000</span></h1>
-    <p class="tag">Championnat de dødsing</p>
-    <button class="btn big" data-go="spots">JOUER</button>
-    <p class="hint">Espace ou tap pour tout faire</p>
+    <p class="tag" data-i18n="title.tag">Championnat de dødsing</p>
+    <button class="btn big" data-go="spots" data-i18n="title.play">JOUER</button>
+    <button class="btn ghost" id="quit" type="button" hidden data-i18n="title.quit">Quitter</button>
+    <p class="hint" data-i18n="title.hint">Un seul doigt : appuie, tiens la planche, lâche</p>
     <p class="version" id="version"></p>
   </div>
 </section>
@@ -28,11 +31,13 @@
 <!-- SELECTION DE SPOT -->
 <section id="s-spots" class="screen">
   <header class="bar">
-    <button class="btn ghost" data-go="title">&lt;</button>
-    <h2>CHOISIS TON SPOT</h2>
-    <div class="total">TOTAL <b id="total-score">0</b></div>
+    <button class="btn ghost" data-go="title" aria-label="Retour au titre" data-i18n-aria="nav.title">&lt;</button>
+    <h2 data-i18n="spots.heading">CHOISIS TON SPOT</h2>
+    <div class="total"><span data-i18n="spots.total">TOTAL</span> <b id="total-score">0</b></div>
   </header>
   <div id="spot-list"></div>
+  <p class="world-record" data-i18n="spots.horizon">Record du monde : 48,7 m</p>
+  <p class="spots-hint" data-i18n="spots.hint.desk"></p>
 </section>
 
 <!-- BRIEF DU SPOT -->
@@ -43,14 +48,26 @@
       <p id="brief-place"></p>
     </div>
     <div class="stats">
-      <div><span id="brief-height"></span><small>hauteur</small></div>
-      <div><span id="brief-diff"></span><small>difficulté</small></div>
-      <div><span id="brief-best"></span><small>record</small></div>
+      <div><span id="brief-height"></span><small data-i18n="brief.height">hauteur</small></div>
+      <div><span id="brief-diff"></span><small data-i18n="brief.diff">difficulté</small></div>
+      <div><span id="brief-best"></span><small data-i18n="brief.best">record</small></div>
     </div>
     <p id="brief-note" class="note"></p>
+    <ol class="gesture" aria-label="Le geste" data-i18n-aria="brief.gesture">
+      <li><i class="g1"></i><b data-i18n="brief.press">APPUIE</b><small data-i18n="brief.press.sub">au bord</small></li>
+      <li><i class="g2"></i><b data-i18n="brief.hold">TIENS</b><small data-i18n="brief.hold.sub">à plat, en døds</small></li>
+      <li><i class="g3"></i><b data-i18n="brief.release">LÂCHE</b><small data-i18n="brief.release.sub">juste avant l'eau</small></li>
+    </ol>
+    <p class="figs-line" data-i18n="brief.figs">En vol : coup sec = salto ou grab, glissé latéral = vrille, la direction du lâcher choisit la réception</p>
+    <div class="defis">
+      <h3 data-i18n="defi.title">DÉFIS</h3>
+      <ul id="brief-defis" data-i18n-aria="defi.aria"></ul>
+      <p class="defis-open" id="brief-defis-open" hidden></p>
+    </div>
+    <p class="wind-line" id="brief-wind"></p>
     <div class="row">
-      <button class="btn ghost" data-go="spots">Retour</button>
-      <button class="btn big" data-go="run">3 SAUTS, GO</button>
+      <button class="btn ghost" data-go="spots" data-i18n="brief.back">Retour</button>
+      <button class="btn big" data-go="run" data-i18n="brief.go">3 SAUTS, GO</button>
     </div>
   </div>
 </section>
@@ -58,12 +75,14 @@
 <!-- HUD EN JEU -->
 <section id="s-run" class="screen hud">
   <div class="hud-top">
-    <div class="hud-cell"><small>SAUT</small><b id="hud-jump">1/3</b></div>
+    <div class="hud-cell"><small data-i18n="hud.jump">SAUT</small><b id="hud-jump">1/3</b></div>
     <div class="hud-cell center"><small id="hud-spot"></small><b id="hud-score">0</b><small id="hud-streak"></small></div>
-    <div class="hud-cell right"><small>ALTITUDE</small><b id="hud-alt">0 m</b></div>
+    <div class="hud-cell right"><small data-i18n="hud.alt">ALTITUDE</small><b id="hud-alt">0 m</b></div>
   </div>
 
-  <div id="runbar"><div id="runbar-fill"></div><div id="runbar-zone"></div></div>
+  <div id="runbar"><div id="runbar-fill"></div><div id="runbar-zone"><small data-i18n="hud.takeoff">APPEL</small></div></div>
+
+  <div id="level" aria-hidden="true"><span class="lv-zone"></span><i id="level-bubble"></i><small id="level-label" data-i18n="level.plank">PLANCHE</small></div>
 
   <div id="tuckring">
     <svg viewBox="0 0 120 120">
@@ -71,20 +90,30 @@
       <circle class="tr-zone" cx="60" cy="60" r="52"></circle>
       <circle class="tr-arc" cx="60" cy="60" r="52"></circle>
     </svg>
-    <div id="tuckring-label">DØDS</div>
+    <div id="tuckring-label"><small id="tr-cap" data-i18n="hud.ifRelease">SI TU LÂCHES</small><span id="tr-grade">DØDS</span><b id="pot"></b><small id="tr-streak"></small></div>
   </div>
 
   <div id="pause">
     <div class="card pause-card">
-      <h2>EN PAUSE</h2>
-      <p>L'onglet est passé en arrière plan. Le saut reprend où il s'est arrêté.</p>
-      <button class="btn big" id="pause-resume">REPRENDRE</button>
+      <h2 data-i18n="pause.title">EN PAUSE</h2>
+      <p id="pause-text" data-i18n="pause.idle">L'onglet est passé en arrière plan. Le saut reprend où il s'est arrêté.</p>
+      <div class="hold-target" id="pause-resume" role="button" tabindex="0" data-i18n="pause.resume">REPRENDRE</div>
     </div>
   </div>
 
   <div id="callout"></div>
   <div id="toast"></div>
   <div id="prompt"></div>
+  <!-- bandeau du replay : trois angles, un retour d'un geste -->
+  <div id="replaybar">
+    <b data-i18n="replay.tag">REPLAY</b>
+    <div class="angles" role="group" data-i18n-aria="replay.angles.aria">
+      <button type="button" id="ra-suivi" data-i18n="replay.angle.suivi">SUIVI</button>
+      <button type="button" id="ra-bord" data-i18n="replay.angle.bord">AU BORD</button>
+      <button type="button" id="ra-eau" data-i18n="replay.angle.eau">AU RAS DE L'EAU</button>
+    </div>
+    <small id="replay-hint"></small>
+  </div>
 </section>
 
 <!-- RESULTAT DU SAUT -->
@@ -94,6 +123,21 @@
     <p id="jr-sub"></p>
     <p id="jr-timing"></p>
     <p id="jr-landing"></p>
+    <div id="jr-judges" role="list" data-i18n-aria="judges.aria">
+      <div class="judge" role="listitem"><small data-i18n="judge.1">Astrid</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.2">Bjørn</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.3">Ingrid</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.4">Lars</small><b>·</b></div>
+      <div class="judge" role="listitem"><small data-i18n="judge.5">Synne</small><b>·</b></div>
+      <div class="judge mark" role="listitem"><small data-i18n="judges.mark">NOTE</small><b id="jr-mark">·</b></div>
+    </div>
+    <ul id="jr-crits">
+      <li data-crit="elan"><span data-i18n="crit.elan">ÉLAN</span><i class="bar"><i></i></i><b>0,0</b></li>
+      <li data-crit="vol"><span data-i18n="crit.vol">VOL</span><i class="bar"><i></i></i><b>0,0</b></li>
+      <li data-crit="fermeture"><span data-i18n="crit.fermeture">FERMETURE</span><i class="bar"><i></i></i><b>0,0</b></li>
+      <li data-crit="reception"><span data-i18n="crit.reception">RÉCEPTION</span><i class="bar"><i></i></i><b>0,0</b></li>
+    </ul>
+    <p id="jr-advice"><b data-i18n="judges.weakLabel">À TRAVAILLER :</b><span id="jr-advice-text"></span></p>
     <div id="jr-gauge" aria-hidden="true">
       <div class="g-track">
         <span class="g-bands">
@@ -104,10 +148,16 @@
         </span>
         <span class="g-mark"></span>
       </div>
-      <div class="g-ends"><span>trop tôt</span><span>eau</span></div>
+      <div class="g-ends"><span data-i18n="gauge.early">trop tôt</span><span data-i18n="gauge.water">eau</span></div>
     </div>
     <ul class="breakdown" id="jr-lines"></ul>
-    <button class="btn big" id="jr-next">SUITE</button>
+    <div class="jr-foot">
+      <div class="jr-actions">
+        <button class="btn big" id="jr-next" data-i18n="result.next">SUITE</button>
+        <button class="btn ghost" id="jr-replay" data-i18n="replay.watch">REVOIR LE SAUT</button>
+      </div>
+      <p class="tap-hint" data-i18n="result.tap">ou tape n'importe où</p>
+    </div>
   </div>
 </section>
 
@@ -119,8 +169,8 @@
     <div class="final" id="end-score">0</div>
     <p id="end-best" class="note"></p>
     <div class="row">
-      <button class="btn ghost" data-go="spots">Spots</button>
-      <button class="btn big" data-go="run">REJOUER</button>
+      <button class="btn ghost" data-go="spots" data-i18n="end.spots">Spots</button>
+      <button class="btn big" data-go="run" data-i18n="end.again">REJOUER</button>
     </div>
   </div>
 </section>
@@ -131,23 +181,32 @@
     <path class="wave" d="M15.6 9.1a4.2 4.2 0 0 1 0 5.8M18.3 6.6a7.8 7.8 0 0 1 0 10.8"/>
     <path class="slash" d="M16.2 9.6l5.4 4.8M21.6 9.6l-5.4 4.8"/>
   </svg>
-  <span class="sr">Son</span>
+  <span class="sr" data-i18n="sound.label">Son</span>
 </button>
 
-<div id="loading">chargement…</div>
+<!-- Langue : visible sur l'ecran titre seulement (style.css), car changer de langue recharge la page. -->
+<button id="lang" class="btn ghost icon" type="button" data-i18n="lang.switch" data-i18n-aria="lang.aria" data-i18n-title="lang.aria" aria-label="English" title="English">EN</button>
+
+<div id="loading" data-i18n="loading">chargement…</div>
 
 <!-- integrity : le navigateur refuse three si le CDN sert autre chose que ces octets exacts.
      Hash calcule sur le tarball npm officiel de three 0.170.0. jsdelivr sert le fichier npm tel
      quel, ce qui rend le hash verifiable ; cdnjs sert son propre build minifie, qui ne l'est pas.
-     Chrome 127, Firefox 138 et Safari 18.4 appliquent la cle, les versions d'avant l'ignorent. -->
+     Chrome 127, Firefox 138 et Safari 18.4 appliquent la cle, les versions d'avant l'ignorent.
+     Les addons (Water, post-traitement) viennent du meme depot 0.170.0, epingle par la version ;
+     le harnais les sert depuis tools/vendor/jsm (voir tools/run.sh). -->
 <script type="importmap">
 {
-  "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" },
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  },
   "integrity": {
-    "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js": "sha384-GY5FqjttLCFRt/McQbyaVdCk2O1IQtOeX8Py6NfD89BIAsIyJFRl4UgSXrk2vXAk"
+    "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js": "sha384-IDC7sAMAIMB/TZ6dgKKPPAKZ2bXXXP8+FBMBC8cU319eBhKITx+PaalhfDkDNH28"
   }
 }
 </script>
+<script type="module" src="src/i18n.js"></script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -1,19 +1,52 @@
 import * as THREE from 'three';
-import { SPOTS, DIFF_LABEL, spotById } from './spots.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SPOTS, DIFF_LABEL, DIFF_LABEL_EN } from './spots.js';
+import { LANG, TOUCH, t, loc, setLang, applyStatic } from './i18n.js';
 import { buildWorld } from './world.js';
 import { createSplash } from './fx.js';
 import { createAudio } from './audio.js';
 import { Jump, keepsStreak, streakBonus } from './game.js';
+import { CRITS } from './judging.js';
+import { defisFor, defiDone, defiLabel, UNLOCK_NEED } from './defis.js';
+import { Recorder, REC_DT, DiverEcho, CAM_ANGLES, createReplayCam, placeReplayCam, loadGhosts, ghostBuf, encodeTrace, saveGhosts } from './replay.js';
+import { DESKTOP, ACH, achieve, quit } from './platform.js';
 
 const $ = s => document.querySelector(s);
-export const VERSION = 'v1.8';
+// Les textes fixes de index.html passent dans la langue choisie avant toute autre ecriture du DOM.
+applyStatic();
+export const VERSION = 'v4.5';
 const JUMPS_PER_RUN = 3;
+// Meme cle qu'en v1 : la note et le score n'ont pas change d'echelle, les records restent.
 const STORE = 'dods3000.v1';
+const DIFF = LANG === 'en' ? DIFF_LABEL_EN : DIFF_LABEL;
+// Les consignes de planche selon le pointeur : glisser le doigt, ou fleches et stick sur PC.
+// Un clavier utilise sur un ecran tactile prend la consigne PC. Resolues une fois, la boucle
+// chaude ne fait que choisir.
+const STEER = ['touch', 'desk'].map(d => ({ up: t('steer.up.' + d), down: t('steer.down.' + d), learn: t('steer.learn.' + d) }));
+
+/* ---------- DOM ---------- */
+// Tout ce que la boucle touche est lu une fois ici. Un querySelector par element et par
+// image, puis une ecriture meme quand rien ne change, coutait un recalcul de style a
+// chaque frame sur mobile.
+const E = {};
+for (const id of ['hud-alt', 'hud-jump', 'hud-score', 'hud-spot', 'hud-streak', 'runbar', 'runbar-fill', 'runbar-zone',
+  'tuckring', 'tr-grade', 'tr-streak', 'pot', 'level', 'level-bubble', 'level-label', 'prompt', 'toast', 'callout', 'vignette', 'speed', 'flash', 'fade', 'pause', 'pause-text',
+  'pause-resume', 'loading', 'sound', 'lang', 'quit', 'version',
+  'jr-judges', 'jr-mark', 'jr-crits', 'jr-advice', 'jr-advice-text', 'replaybar', 'replay-hint', 'ra-suivi', 'ra-bord', 'ra-eau'])
+  E[id] = document.getElementById(id);
+const trArc = E.tuckring.querySelector('.tr-arc'), trZone = E.tuckring.querySelector('.tr-zone');
+
+function setText(n, v) { if (n._t !== v) { n._t = v; n.textContent = v; } }
+function setStyle(n, k, v) { const c = '_s' + k; if (n[c] !== v) { n[c] = v; n.style[k] = v; } }
+function setClass(n, cls, on) { const c = '_c' + cls; if (n[c] !== on) { n[c] = on; n.classList.toggle(cls, on); } }
+function setAttr(n, k, v) { const c = '_a' + k; if (n[c] !== v) { n[c] = v; n.setAttribute(k, v); } }
 
 const audio = createAudio();
 const canvas = $('#scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 700 ? 1.75 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // ACES desature les teintes pales : la roche beige y virait au gris. Le tone mapping neutre garde la couleur.
@@ -22,6 +55,25 @@ renderer.toneMappingExposure = 1.12;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 1600);
+
+// Post-traitement. Le rendu part dans une cible lineaire et l'OutputPass applique le
+// tone mapping en toute fin : rendre l'ecran apres le bloom y passait une seconde fois
+// (image terne ou crassee). La cible est en demi-flottant avec echantillonnage
+// multicanaux : sans lui, le halo faisait scintiller les aretes des roches.
+// Le seuil haut ne laisse flotter que les vraies hautes lumieres : le soleil sur
+// l'eau, l'ecume de la gerbe, le couchant. Le reste reste net.
+const composer = new EffectComposer(renderer,
+  new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+const renderPass = new RenderPass(new THREE.Scene(), camera);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.55, 0.9);
+composer.addPass(renderPass);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+function renderScene() {
+  if (!world) return;
+  renderPass.scene = world.scene;
+  composer.render();
+}
 let world = null, jump = null, splash = null;
 let state = { spot: SPOTS[0], jumpIndex: 0, runScore: 0, last: null, streak: 0 };
 const save = loadSave();
@@ -33,62 +85,273 @@ function loadSave() {
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch { } }
 function totalScore() { return Object.values(save.best).reduce((a, b) => a + b, 0); }
 
+/* ---------- defis et progression (v4.4) ---------- */
+// Trois defis par spot ; deux ouvrent le suivant. Les defis coches vivent dans la
+// meme sauvegarde que les records, donc ils survivent au rechargement.
+function defisOf(spot) {
+  save.defis = save.defis || {};
+  return save.defis[spot.id] || (save.defis[spot.id] = {});
+}
+function defisDone(spot) {
+  const st = save.defis && save.defis[spot.id];
+  if (!st) return 0;
+  return defisFor(spot).filter(d => st[d.key]).length;
+}
+// Un spot s'ouvre a UNLOCK_NEED defis du precedent. Un record pose avant la v4.4
+// vaut deblocage : les joueurs de la v3 gardent leurs spots, les defis restent a
+// cocher. Le premier spot est toujours ouvert, c'est la que le geste s'apprend.
+function spotOpen(i) {
+  if (i <= 0) return true;
+  if ((save.best[SPOTS[i].id] || 0) > 0) return true;
+  return defisDone(SPOTS[i - 1]) >= UNLOCK_NEED;
+}
+
+// Les defis se lisent au resultat, comme les juges : les grandeurs sont figees depuis
+// l'entree dans l'eau. Renvoie les libelles nouvellement coches.
+function checkDefis(res) {
+  const spot = state.spot;
+  const st = defisOf(spot);
+  const next = SPOTS.indexOf(spot) + 1;
+  const before = defisDone(spot);
+  const done = [];
+  for (const df of defisFor(spot))
+    if (!st[df.key] && defiDone(df, res)) { st[df.key] = 1; done.push(defiLabel(df)); }
+  if (done.length) { toast(t('defi.done', { label: done.join(' · ') })); audio.tick(3); }
+  // un seul saut peut cocher deux defis d'un coup : le basculement se lit avant/apres
+  if (next < SPOTS.length && before < UNLOCK_NEED && defisDone(spot) >= UNLOCK_NEED) {
+    callout(t('unlock.spot', { name: SPOTS[next].name }), '#ffd447');
+    // la hauteur qui s'ouvre se sent dans la main : l'ovation couvre deja l'oreille
+    buzz([25, 60, 25, 60, 45]);
+  }
+  return done;
+}
+
+/* ---------- replay et fantome (v4.3) ---------- */
+// Le saut qui se joue s'enregistre image par image dans son etat rendu ; la carte le
+// relit sous trois angles, et le meilleur saut du spot reviendra en transparence au
+// saut suivant. La trace vit en temps de jeu : le replay rend la duree vecue, ralenti
+// des derniers metres compris.
+const rec = new Recorder();
+const ghosts = loadGhosts();
+const replayCamState = createReplayCam();
+let replay = null, echo = null, ghostEcho = null;
+let ghostTrace = null;            // { buf, n, ev } du record du spot, pour le saut courant
+let runT = 0, recording = false, lastPhase = '', ghostToasted = false;
+
+function loadGhostNow() {
+  ghostTrace = null;
+  const g = ghosts[state.spot.id];
+  if (!g) return;
+  const buf = ghostBuf(g);
+  if (buf && g.n >= 2) ghostTrace = { buf, n: g.n, ev: g.ev };
+}
+
+function updateReplayHud() {
+  setText(E['replay-hint'], TOUCH ? t('replay.hint.touch') : t('replay.hint.desk'));
+  for (let i = 0; i < CAM_ANGLES.length; i++)
+    setClass(E['ra-' + CAM_ANGLES[i]], 'on', !!replay && replay.angle === i);
+}
+function setReplayAngle(i) {
+  if (!replay) return;
+  replay.angle = ((i % CAM_ANGLES.length) + CAM_ANGLES.length) % CAM_ANGLES.length;
+  updateReplayHud();
+}
+function startReplay() {
+  if (!rec.n || !world || !jump) return;
+  replay = { t: 0, angle: 0, fired: false };
+  if (!echo) echo = new DiverEcho(world.scene, false);
+  echo.show();
+  jump.diver.root.visible = false;
+  if (ghostEcho) ghostEcho.hide();
+  replayCamState.snap = true;
+  setClass(E.replaybar, 'on', true);
+  updateReplayHud();
+  show('run');
+}
+// Retour a la carte : le bandeau se leve, la cascade reprend ou elle en etait.
+function backFromReplay() {
+  stopReplay();
+  show('run', 'jump');
+}
+function stopReplay() {
+  if (!replay) return;
+  replay = null;
+  if (echo) echo.hide();
+  if (jump) jump.diver.root.visible = true;
+  keyUp = keyDown = keyLeft = keyRight = 0;
+  setClass(E.replaybar, 'on', false);
+}
+function replayStep(dt) {
+  replay.t += dt;
+  const ev = rec.ev;
+  if (!replay.fired && ev.impactT >= 0 && replay.t >= ev.impactT) {
+    replay.fired = true;
+    splash.burst(ev.impactX, ev.impactZ, ev.power, ev.dead);
+    // le replay rejoue le plouf pour de bon (puissance comprise), la clameur ne
+    // se rejoue pas : une foule ne s'excite pas deux fois du meme saut
+    audio.splash(ev.dead, ev.power);
+  }
+  echo.pose(rec.buf, rec.n, replay.t);
+  // le chiffre d'altitude suit l'echo : fige a zero par updateHud, il contredisait
+  // le plongeur qui vole a l'ecran pendant toute la relecture
+  setText(E['hud-alt'], Math.max(0, Math.round(echo.diver.root.position.y)) + ' m');
+  placeReplayCam(camera, replayCamState, rec.buf, rec.n, ev, replay.t, CAM_ANGLES[replay.angle], state.spot, dt);
+  // la gerbe retombee, le replay a dit ce qu'il avait a dire : retour a la carte
+  if (ev.impactT >= 0 && replay.t > rec.duration + 0.8) backFromReplay();
+}
+
+// Les reperes de la trace : quand le coureur decolle, quand le corps touche, et ou.
+// Les juges ont deja tout calcule a l'impact (result), le replay n'a qu'a relire.
+function notePhase() {
+  if (jump.state === 'fly' && rec.ev.takeoffT < 0) rec.ev.takeoffT = runT;
+  if (jump.state === 'impact' && rec.ev.impactT < 0) {
+    rec.ev.impactT = runT;
+    rec.ev.impactX = jump.contact.x;
+    rec.ev.impactZ = jump.contact.z;
+    rec.ev.power = jump.result ? jump.result.power : 1;
+    rec.ev.dead = !!(jump.result && jump.result.dead);
+    // l'eau frappe dans la main : fort et long selon la puissance mesuree, plus
+    // sec et rebondi a plat. Puis la foule tranche : ovation ou ohhh decu.
+    buzz(rec.ev.dead ? [90, 50, 120] : [Math.round(40 + rec.ev.power * 50)]);
+    audio.cheer(rec.ev.dead ? 0 : (jump.result && jump.result.judged ? jump.result.judged.mark : 0), rec.ev.dead);
+  }
+  lastPhase = jump.state;
+}
+
+/* ---------- resolution adaptative ---------- */
+// Le telephone qui tient mal 60 images par seconde perd en finesse, pas en fluidite.
+// On ne descend qu'apres une seconde de chute franche, et on verifie que ca a servi :
+// un ecran bride a 30 Hz (mode economie d'energie) ne gagne rien a flouter l'image,
+// alors on revient en arriere et on arrete de chercher.
+// 1,5 sur telephone : 27 % de pixels en moins qu'a 1,75, invisible avec l'antialiasing.
+const PR_MAX = Math.min(window.devicePixelRatio || 1, Math.min(window.innerWidth, window.innerHeight) < 700 ? 1.5 : 2);
+const PR_MIN = Math.min(PR_MAX, 0.85);
+const quality = { pr: PR_MAX, ema: 1 / 60, bad: 0, mode: 'watch', probeT: 0, before: 0, on: true };
+function setPR(pr) { quality.pr = pr; renderer.setPixelRatio(pr); composer.setPixelRatio(pr); resize(); }
+function adapt(real) {
+  if (!quality.on || quality.mode === 'off' || real <= 0 || real > 0.2) return;
+  quality.ema += (real - quality.ema) * 0.06;
+  if (quality.mode === 'probe') {
+    quality.probeT += real;
+    if (quality.probeT > 2) {
+      if (quality.ema < quality.before * 0.88) quality.mode = 'watch';
+      else { setPR(quality.prev); quality.mode = 'off'; }
+    }
+    return;
+  }
+  quality.bad = quality.ema > 1 / 50 ? quality.bad + real : 0;
+  if (quality.bad > 1 && quality.pr > PR_MIN) {
+    quality.before = quality.ema; quality.prev = quality.pr;
+    setPR(Math.max(PR_MIN, +(quality.pr * 0.8).toFixed(2)));
+    quality.mode = 'probe'; quality.probeT = 0; quality.bad = 0;
+  }
+}
+
 /* ---------- son ---------- */
 // L'etat vit dans la meme sauvegarde que les records, donc il survit au rechargement.
 function setMuted(v) {
   save.muted = !!v;
   persist();
   audio.setMuted(save.muted);
-  const b = $('#sound');
+  const b = E.sound;
   b.classList.toggle('muted', save.muted);
   b.setAttribute('aria-pressed', save.muted ? 'true' : 'false');
-  b.title = save.muted ? 'Rétablir le son' : 'Couper le son';
+  b.title = save.muted ? t('sound.unmute') : t('sound.mute');
 }
-$('#sound').addEventListener('click', () => {
+E.sound.addEventListener('click', () => {
   const next = !save.muted;
   setMuted(next);
   if (!next) { audio.unlock(); audio.ui(); }
 });
 setMuted(!!save.muted);
+// Changer de langue recharge la page : le bouton n'existe que sur l'ecran titre (style.css).
+E.lang.addEventListener('click', () => setLang(LANG === 'fr' ? 'en' : 'fr'));
+// Version bureau seulement : un jeu en plein ecran doit se quitter sans Alt-F4.
+if (DESKTOP) { E.quit.hidden = false; E.quit.addEventListener('click', () => quit()); }
 
 /* ---------- ecrans ---------- */
 const screens = ['title', 'spots', 'brief', 'run', 'jump', 'end'];
+const SCREEN = Object.fromEntries(screens.map(s => [s, $('#s-' + s)]));
+const on = s => SCREEN[s].classList.contains('on');
+let shownAt = 0;
+const wideTitle = () => window.innerWidth >= 900 && window.innerWidth / window.innerHeight >= 1.25;
 function show(...names) {
-  for (const s of screens) $('#s-' + s).classList.toggle('on', names.includes(s));
+  // le decalage de l'ecran titre ne suit jamais la camera ailleurs (course, captures)
+  if (!names.includes('title') && camera.view && camera.view.enabled) camera.clearViewOffset();
+  for (const s of screens) SCREEN[s].classList.toggle('on', names.includes(s));
+  // Un bouton qui disparait garde le focus : l'Espace suivant lui revenait, pas au jeu.
+  const a = document.activeElement;
+  if (a && a !== document.body && a.closest && a.closest('.screen:not(.on)')) a.blur();
+  shownAt = performance.now();
+  // Au clavier ou a la manette, chaque menu arrive avec un bouton deja choisi : sans
+  // focus, l'Espace et le bouton A ne savaient rien activer sur la liste des spots.
+  if (lastInput === 'key' || lastInput === 'pad') requestAnimationFrame(focusDefault);
+  // Hors du jeu : plus de tension ni de vent, et le plongeur retourne en haut de la falaise.
+  if (!names.includes('run')) {
+    audio.setTension(0); audio.setWind(0); audio.setCrowd(0, true);
+    clearHeld();
+    if (jump && jump.state !== 'walk') jump.reset(state.jumpIndex);
+    if (ghostEcho) ghostEcho.hide();
+    setStyle(E.speed, 'opacity', '0');
+  }
 }
 
 function buildSpotList() {
   const list = $('#spot-list');
   list.innerHTML = '';
-  for (const s of SPOTS) {
+  const sky = s => `linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})`;
+  SPOTS.forEach((s, i) => {
     // Un vrai bouton : focus au clavier, Entree et Espace natifs, annonce par les lecteurs d'ecran.
-    // Le contenu reste du phrasing (span, i), un titre de section n'a pas sa place dans un bouton.
     const el = document.createElement('button');
     el.className = 'spot';
     el.type = 'button';
     const best = save.best[s.id] || 0;
+    if (!spotOpen(i)) {
+      // Le spot ferme : la carte reste, le voyage continue derriere. Ce qui manque est
+      // ecrit dessus, avec les points des defis du spot qui l'ouvrent.
+      const prev = SPOTS[i - 1];
+      el.classList.add('locked');
+      el.disabled = true;
+      el.setAttribute('aria-label',
+        t('spot.locked.aria', { name: s.name, place: loc(s, 'place'), height: s.height, n: UNLOCK_NEED, spot: prev.name }));
+      el.innerHTML = `
+        <span class="sky" style="background:${sky(s)}"></span>
+        <span class="name">${s.name}</span>
+        <span class="place">${loc(s, 'place')}</span>
+        <span class="lock" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 10V8a5 5 0 0 1 10 0v2h1.2c.5 0 .8.4.8.9v8.2c0 .5-.3.9-.8.9H5.8c-.5 0-.8-.4-.8-.9v-8.2c0-.5.3-.9.8-.9H7zm2 0h6V8a3 3 0 0 0-6 0v2z"/></svg>
+          <b>${t('spot.locked')}</b>
+          <small>${t('spot.locked.hint', { n: UNLOCK_NEED, spot: prev.name })}</small>
+          <span class="pins">${defisFor(prev).map(d => `<i class="${save.defis && save.defis[prev.id] && save.defis[prev.id][d.key] ? 'on' : ''}"></i>`).join('')}</span>
+        </span>`;
+      list.appendChild(el);
+      return;
+    }
     el.setAttribute('aria-label',
-      `${s.name}, ${s.place}, ${s.height} mètres, difficulté ${DIFF_LABEL[s.diff]}, record ${best}`);
+      t('spot.aria', { name: s.name, place: loc(s, 'place'), height: s.height, diff: DIFF[s.diff], best }));
+    el.dataset.ix = i;
     el.innerHTML = `
-      <span class="sky" style="background:linear-gradient(180deg, rgba(4,14,26,0) 15%, rgba(4,14,26,.45) 55%, rgba(4,14,26,.88) 100%), linear-gradient(165deg, ${s.palette.sky[0]}, ${s.palette.sky[1]} 52%, ${s.palette.water})"></span>
+      <span class="sky" style="background:${sky(s)}"></span>
       <span class="name">${s.name}</span>
-      <span class="place">${s.place}</span>
+      <span class="place">${loc(s, 'place')}</span>
       <span class="meta" aria-hidden="true">
         <span><b>${s.height} m</b></span>
-        <span class="diff">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
-        <span>RECORD <b>${best}</b></span>
-      </span>`;
+        <span class="diff">${[1, 2, 3, 4, 5].map(j => `<i class="${j <= s.diff ? 'on' : ''}"></i>`).join('')}</span>
+        <span>${t('spots.best')} <b>${best}</b></span>
+      </span>
+      <span class="pins" aria-hidden="true">${defisFor(s).map(d => `<i class="${save.defis && save.defis[s.id] && save.defis[s.id][d.key] ? 'on' : ''}"></i>`).join('')}</span>`;
     el.onclick = () => { audio.ui(); openBrief(s); };
     list.appendChild(el);
-  }
+  });
   $('#total-score').textContent = totalScore();
 }
 
 // Les fleches parcourent la grille des spots, Debut et Fin sautent aux extremites.
+// Les spots fermes ne sont pas des etapes : un bouton disabled ne prend pas le focus.
 $('#spot-list').addEventListener('keydown', e => {
   const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
   if (step === undefined && e.key !== 'Home' && e.key !== 'End') return;
-  const cards = [...document.querySelectorAll('#spot-list .spot')];
+  const cards = [...document.querySelectorAll('#spot-list .spot:not(.locked)')];
   if (!cards.length) return;
   const i = cards.indexOf(document.activeElement);
   const next = e.key === 'Home' ? 0
@@ -101,55 +364,140 @@ $('#spot-list').addEventListener('keydown', e => {
 function openBrief(spot) {
   state.spot = spot;
   $('#brief-name').textContent = spot.name;
-  $('#brief-place').textContent = spot.place;
+  $('#brief-place').textContent = loc(spot, 'place');
   $('#brief-height').textContent = spot.height + ' m';
-  $('#brief-diff').textContent = DIFF_LABEL[spot.diff];
+  $('#brief-diff').textContent = DIFF[spot.diff];
   $('#brief-best').textContent = save.best[spot.id] || 0;
-  $('#brief-note').textContent = spot.note;
+  $('#brief-note').textContent = loc(spot, 'note');
+  // les trois defis du spot, coches ou a faire : la raison de revenir y est ecrite
+  const st = save.defis && save.defis[spot.id] || {};
+  const ul = $('#brief-defis');
+  ul.innerHTML = '';
+  for (const df of defisFor(spot)) {
+    const li = document.createElement('li');
+    if (st[df.key]) li.className = 'done';
+    li.innerHTML = `<i aria-hidden="true"></i><span>${defiLabel(df)}</span>`;
+    ul.appendChild(li);
+  }
+  const next = SPOTS[SPOTS.indexOf(spot) + 1];
+  const openLine = $('#brief-defis-open');
+  if (next && !spotOpen(SPOTS.indexOf(spot) + 1)) {
+    openLine.hidden = false;
+    openLine.textContent = t('defi.opens', { n: UNLOCK_NEED, spot: next.name });
+  } else openLine.hidden = true;
+  // Le vent dit ce que la planche va demander : rien a Frognerbadet, beaucoup au Lysefjord.
+  const w = spot.wind || 0;
+  const tip = t('steer.tip');
+  $('#brief-wind').textContent = w === 0 ? t('wind.none') : w < 0.45 ? t('wind.light', { tip }) : w < 0.7 ? t('wind.mid', { tip }) : t('wind.strong', { tip });
   show('brief');
+  // Le decor du spot choisi s'installe derriere la fiche, pendant qu'on la lit : la
+  // construction et la compilation des shaders sont payees ici, pas au moment de sauter.
+  // Compare a la cible du fondu en cours, pas au monde encore affiche : trois choix
+  // rapides laissaient sinon le decor du deuxieme derriere la fiche du troisieme.
+  const target = pendingSpot || (world && world.spot);
+  if (!target || target.id !== spot.id) swapWorld(spot);
+}
+
+/* ---------- monde ---------- */
+// Un monde par spot, garde tant qu'on reste sur ce spot : rejouer ne reconstruit plus
+// rien. Il est libere des qu'on en change (invariant 10 de AGENTS.md).
+function useWorld(spot) {
+  if (world && world.spot.id === spot.id) return;
+  if (jump) { jump.dispose(); jump = null; }
+  // les clones de relecture vivent dans la scene du monde : ils partent avant elle
+  if (echo) { echo.dispose(); echo = null; }
+  if (ghostEcho) { ghostEcho.dispose(); ghostEcho = null; }
+  if (world) { world.dispose(); world = null; splash = null; }
+  world = buildWorld(spot, renderer);
+  splash = createSplash(world.scene, world.waterMat);
+  jump = new Jump(spot, world.scene, camera, splash, audio);
+  jump.reduced = reduced();
+  menuCam.snap = true;
+  // compile() ne voit que ce qui est visible : la gerbe, cachee jusqu'a l'impact,
+  // aurait compile ses shaders au pire moment, pendant l'entree dans l'eau.
+  // compile() ne prechauffe pas la passe d'ombre : une vraie image, rendue sous le fondu,
+  // compile tout, ombres comprises.
+  const hidden = [];
+  world.scene.traverse(o => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  try { renderer.compile(world.scene, camera); renderScene(); } catch { }
+  for (const o of hidden) o.visible = false;
+  // Un nouveau decor n'a pas le meme cout : la resolution adaptative reprend sa veille.
+  if (quality.mode === 'off') { quality.mode = 'watch'; quality.bad = 0; }
+}
+
+// Un fondu court masque le changement de decor et la construction qui l'accompagne.
+let swapTimer = 0, pendingSpot = null;
+function swapWorld(spot) {
+  setClass(E.fade, 'on', true);
+  clearTimeout(swapTimer);
+  pendingSpot = spot;
+  swapTimer = setTimeout(() => {
+    pendingSpot = null;
+    useWorld(spot);
+    requestAnimationFrame(() => setClass(E.fade, 'on', false));
+  }, 140);
 }
 
 /* ---------- run ---------- */
 function startRun() {
-  // L'ordre compte : le plongeur et la gerbe vivent dans la scene, donc ils partent avec elle.
-  if (jump) { jump.dispose(); jump = null; }
-  if (world) { world.dispose(); world = null; splash = null; }
-  const spot = state.spot;
-  world = buildWorld(spot, renderer);
-  splash = createSplash(world.scene, world.waterMat);
-  jump = new Jump(spot, world.scene, camera, splash, audio);
+  clearTimeout(swapTimer);
+  pendingSpot = null;
+  stopReplay();
+  clearHeld();
+  setClass(E.fade, 'on', false);
+  useWorld(state.spot);
   state.jumpIndex = 0;
   state.runScore = 0;
   state.streak = 0;
-  $('#hud-spot').textContent = spot.name.toUpperCase();
+  setText(E['hud-spot'], state.spot.name.toUpperCase());
   nextJump();
   show('run');
 }
 
 function nextJump() {
   setPause(false);
+  stopReplay();
+  // Le doigt qui vient de taper la carte est peut-etre encore pose : le saut suivant
+  // commence sans geste en cours, et ce doigt-la ne compte plus. Meme chose pour une
+  // fleche restee enfoncee : elle ne pilote pas la planche du saut suivant.
+  owner = null; keyUp = 0; keyDown = 0; steerPtr = 0;
+  keyLeft = 0; keyRight = 0; steerXPtr = 0;
   state.jumpIndex++;
-  jump.reset();
-  $('#hud-jump').textContent = `${state.jumpIndex}/${JUMPS_PER_RUN}`;
-  $('#hud-score').textContent = state.runScore;
-  showStreak();
-  $('#runbar').classList.add('on');
-  $('#tuckring').classList.remove('on');
-  setPrompt('ESPACE AU BORD', true);
+  jump.reset(state.jumpIndex);
+  // la trace du saut part de la premiere pose de course ; le fantome du record aussi
+  rec.start();
+  runT = 0; lastPhase = ''; recording = true; ghostToasted = false;
+  loadGhostNow();
   jump.onDone = onJumpDone;
+  lastLevel = -1; gustShown = false; figSeen = 0;
+  setText(E['hud-jump'], `${state.jumpIndex}/${JUMPS_PER_RUN}`);
+  setText(E['hud-score'], String(state.runScore));
+  showStreak();
+  setClass(E.runbar, 'on', true);
+  setClass(E.tuckring, 'on', false);
+  // la zone de bon decollage : les 2,6 derniers metres des 9,5 de la piste
+  setStyle(E['runbar-zone'], 'left', ((1 - 2.6 / 9.5) * 100).toFixed(1) + '%');
+  setStyle(E['runbar-zone'], 'width', ((2.6 / 9.5) * 100).toFixed(1) + '%');
+  setPrompt(save.jumps ? t('prompt.edge') : t('prompt.edge.first'), true, true);
 }
 
 /* ---------- lecture du timing ---------- */
 // GOOD ou EARLY ne dit pas si on a manque de 30 ms ou de 300. L'ecart au parfait et
 // la jauge situent la fermeture dans la fenetre : c'est ce qui rend le geste apprenable.
-const sec = v => v.toFixed(2).replace('.', ',');
+const sec = v => LANG === 'fr' ? v.toFixed(2).replace('.', ',') : v.toFixed(2);
+// Un multiplicateur a la francaise : x1,15 et pas x1.15.
+const num = v => LANG === 'fr' ? String(v).replace('.', ',') : String(v);
+// Une note de juge, au dixieme : 7,8 et pas 7.8.
+const num1 = v => LANG === 'fr' ? v.toFixed(1).replace('.', ',') : v.toFixed(1);
 
 function timingText(res) {
   const w = res.win;
-  if (!res.tucked) return 'jamais refermé';
-  if (res.ttc < w.perfectLo) return sec(w.perfectLo - res.ttc) + ' s trop tard';
-  if (res.ttc <= w.perfectHi) return 'au cœur de la fenêtre';
-  return sec(res.ttc - w.perfectHi) + ' s trop tôt';
+  if (!res.tucked) return t('timing.never');
+  // Lacher dans la foulee du decollage : le premier reflexe de qui tape au lieu de tenir.
+  if (res.air < 0.3 && !res.dead) return t('timing.tooSoon');
+  if (res.ttc < w.perfectLo) return t('timing.late', { s: sec(w.perfectLo - res.ttc) });
+  if (res.ttc <= w.perfectHi) return t('timing.center');
+  return t('timing.early', { s: sec(res.ttc - w.perfectHi) });
 }
 
 // L'axe va de la fermeture la plus precoce, a gauche, a l'entree dans l'eau, a droite.
@@ -171,125 +519,283 @@ function drawGauge(res) {
   mark.style.background = res.grade.color;
 }
 
+/* ---------- la carte des juges ---------- */
+// Cinq cartons qui se levent un par un, puis la moyenne, puis les quatre criteres
+// avec le plus faible surligne et son conseil. La cascade vit dans le temps de jeu
+// (avancee dans frame()), pas dans un delai CSS : le rendu image par image de la
+// video la rejoue a la frame pres, et la boucle n'ecrit que ce qui change.
+const judgeCards = [...document.querySelectorAll('#jr-judges .judge:not(.mark)')];
+const judgeNotes = judgeCards.map(el => el.querySelector('b'));
+const critLis = [...document.querySelectorAll('#jr-crits li')];
+const critBars = critLis.map(li => li.querySelector('.bar i'));
+const critNotes = critLis.map(li => li.querySelector('b'));
+let cardClock = 0, cardStage = 0;
+
+function fillCard(res) {
+  const jud = res.judged;
+  if (!jud) return;
+  for (let i = 0; i < judgeCards.length; i++) {
+    setText(judgeNotes[i], num1(jud.judges[i].note));
+    setClass(judgeCards[i], 'up', false);
+  }
+  setText(E['jr-mark'], num1(jud.mark));
+  setClass(E['jr-judges'], 'done', false);
+  setClass(E['jr-crits'], 'on', false);
+  for (let i = 0; i < critLis.length; i++) {
+    setText(critNotes[i], num1(jud.notes[i]));
+    setStyle(critBars[i], 'transform', 'scaleX(0)');
+    setClass(critLis[i], 'weak', i === jud.weak);
+  }
+  setText(E['jr-advice-text'], t('advice.' + CRITS[jud.weak]));
+  setClass(E['jr-advice'], 'on', false);
+  cardClock = 0; cardStage = 0;
+}
+
+function updateCard(dt) {
+  const res = state.last;
+  if (!res || !res.judged) return;
+  cardClock += dt;
+  while (cardStage < judgeCards.length && cardClock >= 0.5 + cardStage * 0.32) {
+    setClass(judgeCards[cardStage], 'up', true);
+    audio.tick(1 + cardStage * 0.75);
+    cardStage++;
+  }
+  if (cardStage === judgeCards.length) {
+    setClass(E['jr-judges'], 'done', true);
+    setClass(E['jr-crits'], 'on', true);
+    setClass(E['jr-advice'], 'on', true);
+    // les barres montent maintenant que le bloc est visible : la transition joue
+    for (let i = 0; i < critLis.length; i++)
+      setStyle(critBars[i], 'transform', `scaleX(${(res.judged.notes[i] / 10).toFixed(3)})`);
+  }
+}
+
 // La serie se compte sur les timings GREAT ou mieux. Elle se casse au premier rate,
-// et le bonus s'applique au saut qui la porte, pas retroactivement : le joueur voit
-// tout de suite ce que son troisieme saut vaut de plus.
+// et le bonus s'applique au saut qui la porte, pas retroactivement.
 function showStreak() {
   const b = streakBonus(state.streak);
-  const el = $('#hud-streak');
-  el.textContent = b ? b.label : (state.streak === 1 ? 'SÉRIE x1' : '');
-  el.classList.toggle('on', !!b);
-  el.classList.toggle('dim', !b && state.streak === 1);
+  const el = E['hud-streak'];
+  setText(el, b ? b.label : (state.streak === 1 ? t('streak.x1') : ''));
+  setClass(el, 'on', !!b);
+  setClass(el, 'dim', !b && state.streak === 1);
 }
 
 function onJumpDone(res) {
   state.last = res;
-  if (res.dead) buzz([40, 60, 40]);
+  save.jumps = (save.jumps || 0) + 1;
+  // la vibration du plat vit a l'instant de l'eau (notePhase), pas a la carte :
+  // une seule frappe, au moment ou le ventre frappe
   const broken = state.streak >= 2 && !keepsStreak(res.grade);
   state.streak = !res.dead && keepsStreak(res.grade) ? state.streak + 1 : 0;
   const bonus = streakBonus(state.streak);
   const gained = bonus ? Math.round(res.score * bonus.mult) : res.score;
   state.runScore += gained;
   showStreak();
+  achieve(ACH.FIRST_JUMP);
+  if (res.dead) achieve(ACH.BELLY_FLOP);
+  else if (res.grade.key === 'perfect') {
+    achieve(ACH.FIRST_PERFECT);
+    if (state.spot.height >= 34) achieve(ACH.HIGH_PERFECT);
+  }
+  if (res.planche && res.planche.key === 'parfaite') achieve(ACH.PLANK_PERFECT);
+  if (state.streak >= 3) achieve(ACH.STREAK_3);
+  save.visited = save.visited || {};
+  save.visited[state.spot.id] = 1;
+  if (SPOTS.every(s => save.visited[s.id])) achieve(ACH.ALL_SPOTS);
   if (bonus) callout(bonus.label, '#5ef0a8');
-  else if (broken) toast('SÉRIE PERDUE');
-  $('#hud-score').textContent = state.runScore;
+  else if (broken) toast(t('toast.streakLost'));
+  setText(E['hud-score'], String(state.runScore));
   audio.grade(res.dead ? 0 : res.grade.mult);
   $('#jr-grade').textContent = res.grade.label;
   $('#jr-grade').style.color = res.grade.color;
   $('#jr-sub').textContent = res.dead
-    ? 'À plat. Le run s\'arrête là.'
-    : `${res.takeoff.label} · ${res.air.toFixed(2)} s en l\'air`;
+    ? t('result.flat')
+    : t('result.air', { label: res.takeoff.label, air: sec(res.air) });
   $('#jr-timing').textContent = timingText(res);
   $('#jr-timing').style.color = res.grade.color;
   // nommer la forme d'entree : c'est le vocabulaire du dodsing, et ca s'apprend en jouant
   $('#jr-landing').innerHTML = `<b>${res.landing.label}</b> · ${res.landing.note}`;
   drawGauge(res);
+  fillCard(res);
   $('#jr-lines').innerHTML = res.dead ? '' : `
-    <li><span>Base ${res.height} m</span><b>${res.base}</b></li>
-    <li><span>Style, ${res.air.toFixed(2)} s en døds</span><b>+${res.style}</b></li>
-    <li><span>Timing ${res.grade.label}</span><b>x${res.grade.mult}</b></li>
-    <li><span>${res.takeoff.label}</span><b>x${res.takeoff.mult}</b></li>
-    ${bonus ? `<li><span>${bonus.label}</span><b>x${bonus.mult}</b></li>` : ''}
-    <li class="total"><span>Saut ${state.jumpIndex}</span><b>${gained}</b></li>`;
+    <li><span>${t('line.base', { h: res.height })}</span><b>${res.base}</b></li>
+    <li><span>${t('line.style', { air: sec(res.air) })}</span><b>+${res.style}</b></li>
+    <li><span>${t('line.timing', { grade: res.grade.label })}</span><b>x${num(res.grade.mult)}</b></li>
+    <li><span>${res.takeoff.label}</span><b>x${num(res.takeoff.mult)}</b></li>
+    ${res.planche && res.planche.key !== 'aucune' ? `<li><span>${t('line.plank', { label: res.planche.label, deg: Math.round(res.planche.mean * 57.3) })}</span><b>x${num(res.planche.mult)}</b></li>` : ''}
+    ${res.fig ? `<li><span>${t('line.fig', { n: res.fig })}</span><b>+${res.figPts}</b></li>` : ''}
+    ${bonus ? `<li><span>${bonus.label}</span><b>x${num(bonus.mult)}</b></li>` : ''}
+    <li class="total"><span>${t('line.jump', { n: state.jumpIndex })}</span><b>${gained}</b></li>`;
   const finished = res.dead || state.jumpIndex >= JUMPS_PER_RUN;
-  $('#jr-next').textContent = finished ? 'BILAN' : 'SAUT SUIVANT';
-  $('#jr-next').onclick = () => { audio.ui(); finished ? endRun(res.dead) : (show('run'), nextJump()); };
+  $('#jr-next').textContent = finished ? t('result.next.end') : t('result.next.jump');
+  $('#jr-next').onclick = () => { audio.ui(); advance(); };
+  $('#s-jump .tap-hint').textContent = lastInput === 'pad' ? t('result.tap.pad') : TOUCH && lastInput === 'pointer' ? t('result.tap.touch') : t('result.tap.desk');
+  // le fantome du spot est le meilleur saut individuel, pas le meilleur run : c'est un
+  // geste a comparer, la serie n'y est pour rien
+  if (!res.dead && rec.n > 2) {
+    const old = ghosts[state.spot.id];
+    if (!old || res.score > old.score) {
+      // le fantome s'arrete sous la gerbe : le geste suffit, la noyade ne se rejoue pas
+      ghosts[state.spot.id] = encodeTrace(rec, res.score, res.judged ? res.judged.mark : 0,
+        Math.ceil((rec.ev.impactT + 0.8) / REC_DT));
+      saveGhosts(ghosts);
+      if (old) toast(t('replay.ghostSet'));
+    }
+  }
+  // les defis du spot, coches au meme instant que la carte des juges
+  checkDefis(res);
+  persist();
   show('run', 'jump');
+}
+
+// Le resultat se passe d'un tap n'importe ou : la boucle d'essais doit rester courte.
+function advance() {
+  const res = state.last;
+  const finished = !res || res.dead || state.jumpIndex >= JUMPS_PER_RUN;
+  if (finished) endRun(res && res.dead);
+  else { show('run'); nextJump(); }
 }
 
 function endRun(dead) {
   const best = save.best[state.spot.id] || 0;
   const record = state.runScore > best;
   if (record) { save.best[state.spot.id] = state.runScore; persist(); }
-  $('#end-title').textContent = dead ? 'RUN TERMINÉ' : 'TROIS SAUTS DANS LA BOÎTE';
+  if (state.runScore >= 8000) achieve(ACH.RUN_8000);
+  if (totalScore() >= 30000) achieve(ACH.TOTAL_30000);
+  $('#end-title').textContent = dead ? t('end.over') : t('end.done');
   $('#end-sub').textContent = state.spot.name + ' · ' + state.spot.height + ' m';
   $('#end-score').textContent = state.runScore;
-  $('#end-best').textContent = record ? 'NOUVEAU RECORD SUR CE SPOT' : `Record du spot : ${best}`;
+  $('#end-best').textContent = record ? t('end.record') : t('end.best', { best });
   show('run', 'end');
   buildSpotList();
 }
 
 /* ---------- HUD ---------- */
 const RING_C = 2 * Math.PI * 52;
-function setPrompt(text, blink) {
-  const p = $('#prompt');
-  p.textContent = text;
-  p.classList.toggle('blink', !!blink);
+// La touche du geste, nommee dans la consigne : Espace, clic ou A selon le dernier
+// peripherique utilise. Rien sur un telephone, ou le doigt suffit.
+function inputKey() {
+  if (TOUCH && lastInput === 'pointer') return '';
+  return lastInput === 'pad' ? 'A' : lastInput === 'pointer' ? t('input.click') : t('input.space');
+}
+function setPrompt(text, blink, key) {
+  setText(E.prompt, text);
+  setClass(E.prompt, 'blink', !!blink);
+  setAttr(E.prompt, 'data-key', key && text ? inputKey() : '');
 }
 function toast(text) {
-  const el = $('#toast');
-  el.textContent = text;
+  const el = E.toast;
+  el.textContent = text; el._t = text;
   el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
 }
+let calloutTimer = 0;
 function callout(text, color) {
-  const c = $('#callout');
+  const c = E.callout;
   c.textContent = text; c.style.color = color;
   c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
-  setTimeout(() => c.classList.remove('pop'), 1400);
+  clearTimeout(calloutTimer);
+  calloutTimer = setTimeout(() => c.classList.remove('pop'), 1400);
 }
 
-function updateHud() {
-  if (!jump) return;
+const GRADE_LEVEL = { chicken: 0, early: 1, good: 2, great: 3, perfect: 4, smack: 5 };
+let lastLevel = -1, beatClock = 0, gustShown = false, figSeen = 0, lastInput = 'pointer';
+
+function updateHud(dt) {
   const h = jump.hud();
-  $('#hud-alt').textContent = Math.round(h.alt) + ' m';
+  setText(E['hud-alt'], Math.round(h.alt) + ' m');
   if (h.phase === 'walk') {
-    $('#runbar-fill').style.width = (h.progress * 100).toFixed(1) + '%';
-    const lo = 1 - 2.6 / 9.5, hi = 1 - 0.0 / 9.5;
-    const zone = $('#runbar-zone');
-    zone.style.left = (lo * 100) + '%';
-    zone.style.width = ((hi - lo) * 100) + '%';
-  } else if (h.phase === 'fly') {
-    $('#runbar').classList.remove('on');
-    const ring = $('#tuckring');
-    ring.classList.add('on');
-    ring.classList.toggle('hot', h.hot && !h.tucked);
-    // Une fois ferme, l'anneau a fait son travail : il s'efface pour laisser voir l'entree.
-    ring.classList.toggle('done', h.tucked);
-    ring.querySelector('.tr-arc').style.strokeDasharray = `${(h.ratio * RING_C).toFixed(1)} ${RING_C}`;
-    ring.querySelector('.tr-zone').style.strokeDasharray =
-      `0 ${(h.zoneLo * RING_C).toFixed(1)} ${((h.zoneHi - h.zoneLo) * RING_C).toFixed(1)} ${RING_C}`;
-    $('#tuckring-label').textContent = h.tucked ? 'TUCK' : (h.hot ? 'MAINTENANT' : 'DØDS');
-    if (!h.tucked) setPrompt('ESPACE POUR REFERMER', h.hot);
-    else setPrompt('', false);
-    const sp = Math.min(1, Math.abs(jump.vel.y) / 24);
-    audio.setWind(0.15 + sp * 0.85);
-    $('#vignette').style.opacity = (0.35 + sp * 0.85).toFixed(2);
-  } else {
-    $('#tuckring').classList.remove('on');
-    setPrompt('', false);
-    audio.setWind(0);
-    $('#vignette').style.opacity = '1';
+    // transform plutot que width : la barre bouge sans recalcul de mise en page
+    setStyle(E['runbar-fill'], 'transform', `scaleX(${Math.max(0, Math.min(1, h.progress)).toFixed(3)})`);
+    setStyle(E.speed, 'opacity', '0');
+    audio.setTension(0);
+    // le murmure du bord grossit avec l'elan : le public sent le saut venir
+    audio.setCrowd(0.22 + 0.4 * Math.max(0, Math.min(1, h.progress)));
+    return;
   }
+  if (h.phase === 'fly') {
+    setClass(E.runbar, 'on', false);
+    const ring = E.tuckring;
+    setClass(ring, 'on', true);
+    // Une fois ferme, l'anneau a fait son travail : il s'efface pour laisser voir l'entree.
+    setClass(ring, 'done', h.tucked);
+    setAttr(trArc, 'stroke-dasharray', `${(h.ratio * RING_C).toFixed(1)} ${RING_C}`);
+    setAttr(trZone, 'stroke-dasharray', `0 ${(h.zoneLo * RING_C).toFixed(1)} ${((h.zoneHi - h.zoneLo) * RING_C).toFixed(1)} ${RING_C}`);
+    const sp = Math.min(1, Math.abs(jump.vel.y) / 24);
+    if (!h.tucked && h.pot) {
+      // La mise en direct : ce que le lacher rapporterait maintenant. Elle grimpe de
+      // palier en palier, vire a l'or, puis tombe a zero quand l'eau est trop proche.
+      const g = h.pot.grade;
+      setAttr(ring, 'data-grade', g.key);
+      setText(E['tr-grade'], h.held || h.flailing ? g.short : 'DØDS');
+      // La mise vaut ce que le saut ajoutera au score du run, serie comprise : le chiffre
+      // montre en l'air est celui qu'on retrouve sur la carte.
+      const bonus = keepsStreak(g) ? streakBonus(state.streak + 1) : null;
+      setText(E.pot, g.key === 'smack' ? '0' : '+' + (bonus ? Math.round(h.pot.score * bonus.mult) : h.pot.score));
+      // meme regle que le HUD apres coup : SERIE x1 des le premier saut qui la lance
+      const next = keepsStreak(g) ? state.streak + 1 : 0;
+      setText(E['tr-streak'], bonus ? bonus.label : (next === 1 ? t('streak.x1') : ''));
+      const level = GRADE_LEVEL[g.key];
+      if (level !== lastLevel) { if (lastLevel >= 0 && level < 5) audio.tick(level); lastLevel = level; }
+      // Le texte ne donne jamais le top : l'oeil reagit trop tard, c'est l'eau qui monte,
+      // l'ombre qui se resserre et le son qui grimpe qui doivent faire lacher.
+      // La planche : un niveau a bulle au-dessus de l'anneau. Le texte dit dans quel sens
+      // glisser seulement quand elle part vraiment, sinon il redit la consigne du lacher.
+      const tilt = h.tilt || 0;
+      const planche = h.pot.planche;
+      setClass(E.level, 'on', !h.flailing);
+      // Le niveau est vertical, comme le geste : la bulle descend quand la tete plonge, et
+      // on la remonte en remontant le doigt.
+      setStyle(E['level-bubble'], 'transform', `translateY(${(Math.max(-1, Math.min(1, tilt / 0.7)) * 62).toFixed(1)}px)`);
+      setAttr(E.level, 'data-planche', planche.key);
+      setText(E['level-label'], planche.key === 'aucune' ? t('level.plank') : `${planche.short} x${num(planche.mult)}`);
+      const ST = STEER[!TOUCH || lastInput === 'key' ? 1 : 0];
+      // Sur un spot venteux, les premiers sauts disent le geste des le debut du vol ; ensuite
+      // le texte ne sort que quand la planche part vraiment, avec le sens a donner.
+      const windy = (jump.spot.wind || 0) > 0;
+      const learning = windy && (save.jumps || 0) < 8 && h.held && jump.t < 0.7;
+      const steerHint = h.held && !h.flailing && Math.abs(tilt) > 0.15
+        ? (tilt > 0 ? ST.up : ST.down)
+        : learning ? ST.learn : null;
+      setPrompt(h.flailing && !h.held ? t('prompt.flail')
+        : !h.held ? t('prompt.press') : steerHint || t('prompt.hold'), h.hot && h.held && !steerHint, !steerHint);
+      if (h.gust > 0.35 && !gustShown) { gustShown = true; toast(t('toast.gust')); }
+      // une figure terminee s'annonce : le joueur sait ce qui vient d'etre compte
+      if (h.figCount > figSeen) { figSeen = h.figCount; toast(t('figure.' + h.figLast)); }
+      // Le son monte avec le temps qui reste, le coeur accelere : on anticipe a l'oreille.
+      const v = Math.max(0, Math.min(1, 1 - h.ttc / 1.9));
+      audio.setTension(h.held ? v : 0);
+      beatClock += dt;
+      if (h.held && beatClock > 0.62 - v * 0.46) { beatClock = 0; audio.beat(v); }
+    } else {
+      setPrompt('', false);
+      audio.setTension(0);
+      setClass(E.level, 'on', false);
+    }
+    audio.setWind(0.15 + sp * 0.85 + Math.abs(h.wind || 0) * 0.35);
+    // le corps prend le vide : le bord retient son souffle, le vent seul parle
+    audio.setCrowd(0.06, true);
+    setStyle(E.vignette, 'opacity', (0.35 + sp * 0.85).toFixed(2));
+    setStyle(E.speed, 'opacity', (h.tucked ? 0 : sp * sp * 0.9 * motionScale()).toFixed(2));
+    return;
+  }
+  setClass(E.tuckring, 'on', false);
+  setClass(E.level, 'on', false);
+  setPrompt('', false);
+  audio.setWind(0);
+  audio.setTension(0);
+  audio.setCrowd(0, true);
+  setStyle(E.vignette, 'opacity', '1');
+  setStyle(E.speed, 'opacity', '0');
 }
 
-/* ---------- ralenti sur un perfect ---------- */
-// Le geste parfait merite d'etre vu. Le ralenti commence apres la fermeture, donc apres
-// que le style et la note sont figes : le score est identique avec ou sans.
-const SLOW_TTC = 0.35, SLOW_RATE = 0.35;
+/* ---------- ralenti des derniers metres ---------- */
+// La fermeture merite d'etre vue. Le ralenti commence apres la fermeture, donc apres
+// que le style et la note sont figes : le score est identique avec ou sans. Toute
+// fermeture tenue y a droit, pas seulement le perfect : une crevette serree a temps
+// est aussi un moment a montrer. Le smack n'en profite pas, il reste brut.
+const SLOW_TTC = 0.42, SLOW_RATE = 0.25;
 function slowFactor() {
-  if (!window.__dods.slowmo || !jump || !jump.grade || jump.grade.key !== 'perfect') return 1;
-  // La fin de la chute, puis la gerbe : c'est la que le geste se voit.
+  if (!window.__dods.slowmo || !jump || !jump.grade || jump.grade.key === 'smack') return 1;
   if (jump.state === 'fly') return jump.tucked && jump.ttc <= SLOW_TTC ? SLOW_RATE : 1;
   if (jump.state === 'impact') return jump.impactT < SLOW_TTC ? SLOW_RATE : 1;
   return 1;
@@ -297,16 +803,42 @@ function slowFactor() {
 
 /* ---------- mouvement reduit ---------- */
 // La preference est lue a chaque usage, donc un changement systeme s'applique sans rechargement.
-// Elle n'agit que sur la camera et le flash : la physique et le score restent identiques.
+// Elle n'agit que sur la camera et les effets : la physique et le score restent identiques.
 const REDUCED = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-function motionScale() { return REDUCED && REDUCED.matches ? 0.25 : 1; }
+function reduced() { return !!(REDUCED && REDUCED.matches); }
+function motionScale() { return reduced() ? 0.25 : 1; }
 
 /* ---------- retour haptique ---------- */
 // navigator.vibrate manque sur desktop et sur iOS : on sort sans bruit.
 // Le bouton du son commande aussi la vibration, c'est le meme reflexe de discretion.
+// La manette vibre elle aussi (dual-rumble) : le meme pattern, traduit. Sur le
+// jeu comme sur mobile, l'impact frappe, la note caresse, le plat claque.
+function padActuator() {
+  const all = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const g of all) if (g && g.connected && g.vibrationActuator && typeof g.vibrationActuator.playEffect === 'function')
+    return g.vibrationActuator;
+  return null;
+}
+function rumblePad(pattern) {
+  const act = padActuator();
+  if (!act) return;
+  const seq = typeof pattern === 'number' ? [pattern] : pattern;
+  let t = 0;
+  for (let i = 0; i < seq.length; i += 2) {
+    const dur = seq[i];
+    // plus le pattern frappe longtemps, plus il appuie : le decollage chatouille,
+    // l'impact a plat secoue la manette entiere
+    const mag = Math.min(1, 0.35 + dur / 160);
+    setTimeout(() => {
+      try { act.playEffect('dual-rumble', { duration: dur, strongMagnitude: mag, weakMagnitude: mag * 0.75 }); } catch { }
+    }, t);
+    t += dur + (seq[i + 1] || 0);
+  }
+}
 function buzz(pattern) {
-  if (save.muted || typeof navigator.vibrate !== 'function') return;
-  try { navigator.vibrate(pattern); } catch { }
+  if (save.muted) return;
+  if (typeof navigator.vibrate === 'function') { try { navigator.vibrate(pattern); } catch { } }
+  rumblePad(pattern);
 }
 
 /* ---------- pause ---------- */
@@ -315,51 +847,188 @@ function buzz(pattern) {
 let autoPaused = false;
 
 function inJump() {
-  return !!jump && $('#s-run').classList.contains('on')
-    && !$('#s-jump').classList.contains('on') && !$('#s-end').classList.contains('on')
+  return !!jump && on('run') && !on('jump') && !on('end')
     && (jump.state === 'walk' || jump.state === 'fly');
 }
 function paused() { return window.__dods.paused || autoPaused; }
 function setPause(v) {
   if (autoPaused === v) return;
   autoPaused = v;
-  $('#pause').classList.toggle('on', v);
-  if (v) audio.setWind(0);
-  else clock.getDelta(); // vide le delta accumule pendant la pause
+  if (v) {
+    audio.setWind(0); audio.setTension(0); audio.setCrowd(0, true);
+    // Le doigt n'est plus sur l'ecran au retour : le corps reste ouvert, et il faudra
+    // reappuyer pour reprendre la main. Reprendre sur un lacher fermerait le saut.
+    const holding = jump && jump.state === 'fly' && !jump.tucked;
+    if (holding) jump.held = false;
+    setText(E['pause-text'], holding ? t('pause.flying') : t('pause.idle'));
+    setText(E['pause-resume'], holding ? t('prompt.press') : t('pause.resume'));
+  }
+  setClass(E.pause, 'on', v);
 }
 
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && inJump()) setPause(true);
-});
-$('#pause-resume').addEventListener('click', () => { audio.unlock(); audio.ui(); setPause(false); });
+function autoPause() {
+  clearHeld();
+  if (inJump()) setPause(true);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });
+// Alt-tab sans que l'onglet soit masque : la touche relachee ailleurs ne revient jamais.
+window.addEventListener('blur', autoPause);
 
 /* ---------- entrees ---------- */
-function press() {
+// Un seul geste pour tout le saut : appuyer, tenir, lacher. Le clavier et les doigts
+// alimentent le meme ensemble de « maintiens » ; le maintien qui lance le geste (owner)
+// est le seul qui le termine. Un deuxieme doigt ne fait donc rien, et la repetition
+// automatique du clavier est ignoree.
+const held = new Set();
+// Le maintien qui a lance le geste est le seul qui le termine. Un doigt fantome (un
+// pointerup perdu, un doigt pose au bord de l'ecran) ne bloque donc plus rien : il ne
+// peut ni empecher un decollage ni retenir un lacher.
+let owner = null;
+// La planche se tient en glissant le doigt qui tient le geste, vers le haut pour relever
+// la tete, vers le bas pour la baisser. Au clavier : fleches haut et bas avec l'Espace.
+let anchorY = 0, steerPtr = 0, keyUp = 0, keyDown = 0;
+// L'axe horizontal (v4.2) : il ne commande pas la planche, il fait la vrille. Au clavier,
+// fleches gauche et droite avec l'Espace ; a la manette, stick et croix horizontaux.
+let anchorX = 0, steerXPtr = 0, keyLeft = 0, keyRight = 0;
+const STEER_SPAN = () => Math.max(60, window.innerHeight * 0.12);
+const STEER_SPAN_X = () => Math.max(60, window.innerWidth * 0.12);
+let frameStamp = performance.now(), frameRate = 1;
+function clearHeld() { held.clear(); owner = null; steerPtr = 0; keyUp = 0; keyDown = 0; steerXPtr = 0; keyLeft = 0; keyRight = 0; pad.steer = 0; pad.steerX = 0; }
+
+// Temps ecoule entre la derniere image simulee et l'evenement, en temps de jeu.
+function lateOf(e) {
+  if (!e || paused()) return 0;
+  const now = performance.now();
+  let t = typeof e.timeStamp === 'number' ? e.timeStamp : now;
+  if (!(t > 0) || Math.abs(t - now) > 1000) t = now;
+  return Math.max(0, Math.min(0.05, (t - frameStamp) / 1000)) * frameRate;
+}
+
+function inputDown(src, e) {
+  // Un maintien deja connu qui reappuie : son lacher s'est perdu (souris relachee hors de
+  // la fenetre). On le solde avant de prendre le nouvel appui, sinon le jeu reste bloque.
+  if (held.has(src)) inputUp(src, e);
+  held.add(src);
   audio.unlock();
-  if (autoPaused) { setPause(false); return; }
-  if ($('#s-jump').classList.contains('on') || $('#s-end').classList.contains('on')) return;
-  if ($('#s-title').classList.contains('on')) { audio.ui(); show('spots'); buildSpotList(); return; }
-  if ($('#s-brief').classList.contains('on')) { audio.ui(); startRun(); return; }
-  if (!jump || !$('#s-run').classList.contains('on')) return;
-  const before = jump.state;
-  jump.input();
-  if (before === 'walk' && jump.state === 'fly') {
+  // Un second doigt pendant le geste ne fait rien. Hors geste, tout nouvel appui compte.
+  if (owner !== null) return;
+  owner = src;
+  anchorY = e && typeof e.clientY === 'number' ? e.clientY : 0;
+  anchorX = e && typeof e.clientX === 'number' ? e.clientX : 0;
+  steerPtr = 0;
+  steerXPtr = 0;
+  onPress(e);
+}
+function inputUp(src, e) {
+  if (!held.delete(src)) return;
+  if (src !== owner) return;
+  owner = null;
+  onRelease(e);
+}
+
+function onPress(e) {
+  if (autoPaused) {
+    setPause(false);
+    // reprendre en plein vol, c'est reprendre la main : le doigt pose tient le dods
+    if (jump && jump.state === 'fly' && !jump.tucked) jump.down(0);
+    return;
+  }
+  // pendant la relecture, tout appui rend la main : le replay est une parenthese,
+  // la boucle d'essais reste courte (un geste pour rejouer, un geste pour reprendre)
+  if (replay) { audio.ui(); backFromReplay(); return; }
+  if (on('end')) {
+    if (performance.now() - shownAt > 600) { audio.ui(); startRun(); }
+    return;
+  }
+  if (on('jump')) {
+    if (performance.now() - shownAt > 450) { audio.ui(); advance(); }
+    return;
+  }
+  if (on('title')) { audio.ui(); buildSpotList(); show('spots'); return; }
+  if (on('spots')) { focusDefault(); return; }
+  if (on('brief')) { audio.ui(); startRun(); return; }
+  if (!jump || !on('run')) return;
+  const late = lateOf(e);
+  const what = jump.down(late);
+  if (what === 'takeoff') {
     toast(jump.takeoff.label);
     buzz(20);
-    $('#runbar').classList.remove('on');
-  } else if (jump.tucked && jump.grade) {
-    callout(jump.grade.label, jump.grade.color);
-    buzz(jump.grade.key === 'smack' ? [40, 60, 40] : 30);
+    setClass(E.runbar, 'on', false);
+    beatClock = 0;
   }
 }
 
+function onRelease(e) {
+  if (!jump || !on('run') || on('jump') || on('end') || autoPaused) return;
+  const late = lateOf(e);
+  if (jump.up(late) === 'tuck') {
+    callout(jump.grade.label, jump.grade.color);
+    buzz(jump.grade.key === 'smack' ? [40, 60, 40] : jump.grade.key === 'perfect' ? [15, 40, 15, 40, 30] : 30);
+    audio.setTension(0);
+  }
+}
+
+const isAction = e => e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.key === ' ';
 window.addEventListener('keydown', e => {
-  // Un bouton a le focus : on lui laisse son Espace et son Entree natifs.
-  const onControl = e.target && e.target.closest && e.target.closest('button');
-  if (!onControl && (e.code === 'Space' || e.code === 'Enter' || e.key === ' ')) { e.preventDefault(); press(); }
-  if (e.code === 'Escape' && $('#s-run').classList.contains('on')) { setPause(false); show('spots'); }
+  if (isAction(e)) {
+    // Un bouton a le focus : il s'active des l'appui. Le natif n'active l'Espace qu'au
+    // relacher, et seulement si le focus n'a pas bouge entre les deux : un clic pendant
+    // l'appui perdait l'action, et les bots hearth restaient bloques sur la fiche (30/09).
+    const b = e.target && e.target.closest && e.target.closest('button');
+    if (b) { e.preventDefault(); if (!e.repeat) { lastInput = 'key'; b.click(); } return; }
+    e.preventDefault();
+    if (e.repeat) return;
+    lastInput = 'key';
+    inputDown('k' + e.code, e);
+  }
+  // pendant la relecture, les fleches ne tiennent pas la planche : elles tournent
+  // autour du plongeur
+  if (replay && e.code.startsWith('Arrow')) {
+    e.preventDefault();
+    lastInput = 'key';
+    if (!e.repeat)
+      setReplayAngle(replay.angle + (e.code === 'ArrowRight' || e.code === 'ArrowDown' ? 1 : -1));
+    return;
+  }
+  if (on('run') && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+    e.preventDefault();
+    if (e.code === 'ArrowUp') keyUp = 1; else keyDown = 1;
+  }
+  if (on('run') && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+    e.preventDefault();
+    if (e.code === 'ArrowLeft') keyLeft = 1; else keyRight = 1;
+  }
+  if (e.code === 'Escape' && !on('title')) { lastInput = 'key'; menuBack(); }
+  if (e.code === 'Tab' || e.code.startsWith('Arrow')) lastInput = 'key';
 });
-canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
+window.addEventListener('keyup', e => {
+  if (isAction(e)) inputUp('k' + e.code, e);
+  if (e.code === 'ArrowUp') keyUp = 0;
+  if (e.code === 'ArrowDown') keyDown = 0;
+  if (e.code === 'ArrowLeft') keyLeft = 0;
+  if (e.code === 'ArrowRight') keyRight = 0;
+});
+
+// Les doigts : partout sauf sur les boutons et les ecrans de menu. Le canvas, le HUD,
+// la carte de resultat et la pause sont des surfaces de jeu.
+window.addEventListener('pointerdown', e => {
+  const t = e.target;
+  if (t.closest && (t.closest('button, a, input') || t.closest('#s-title, #s-spots, #s-brief, #s-end .card'))) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  lastInput = 'pointer';
+  inputDown('p' + e.pointerId, e);
+}, { passive: false });
+window.addEventListener('pointerup', e => inputUp('p' + e.pointerId, e));
+window.addEventListener('pointermove', e => {
+  if (owner !== 'p' + e.pointerId) return;
+  steerPtr = Math.max(-1, Math.min(1, (anchorY - e.clientY) / STEER_SPAN()));
+  steerXPtr = Math.max(-1, Math.min(1, (e.clientX - anchorX) / STEER_SPAN_X()));
+}, { passive: true });
+window.addEventListener('pointercancel', e => inputUp('p' + e.pointerId, e));
+// Un appui long ne doit ouvrir ni menu contextuel ni loupe : c'est le geste du jeu.
+window.addEventListener('contextmenu', e => { if (on('run')) e.preventDefault(); });
+
 document.querySelectorAll('[data-go]').forEach(b => {
   b.addEventListener('click', () => {
     audio.unlock(); audio.ui();
@@ -370,62 +1039,266 @@ document.querySelectorAll('[data-go]').forEach(b => {
   });
 });
 
-// Surface de test : pilotage du jeu sans clavier, pour les captures et le check.
-// autoJump : distance au bord (m) a laquelle sauter. autoTuck : ttc (s) auquel se refermer.
-// Les deux sont evalues dans la boucle, donc a la frame pres, ce que du JS asynchrone ne sait pas faire.
-window.__dods = { press, get jump() { return jump; }, get world() { return world; }, camera, renderer, get state() { return state; }, show, startRun, autoJump: null, autoTuck: null, paused: false, slowmo: true };
+// la relecture depuis la carte, et le choix d'angle au doigt comme au clavier
+$('#jr-replay').addEventListener('click', () => { audio.ui(); startReplay(); });
+for (let i = 0; i < CAM_ANGLES.length; i++)
+  E['ra-' + CAM_ANGLES[i]].addEventListener('click', () => { audio.ui(); setReplayAngle(i); });
+
+/* ---------- menus au clavier et a la manette ---------- */
+// Les boutons atteignables sur l'ecran visible, dans l'ordre de lecture.
+function menuButtons() {
+  const list = [...document.querySelectorAll('.screen.on button, .screen.on [role=button]')]
+    .filter(b => !b.hidden && !b.disabled && b.offsetParent !== null && !b.closest('.hud'));
+  if (on('title')) for (const b of [E.quit, E.lang, E.sound]) if (!b.hidden && b.offsetParent !== null) list.push(b);
+  return list;
+}
+// Le bouton choisi d'office : le spot joue en dernier sur la liste, l'action principale
+// (bouton jaune) ailleurs.
+function focusDefault() {
+  if (on('run') && !on('jump') && !on('end')) return;
+  if (on('spots')) {
+    // le spot courant s'il est ouvert, sinon la derniere carte ouverte avant lui
+    const cards = [...document.querySelectorAll('#spot-list .spot:not(.locked)')];
+    const i = Math.max(0, SPOTS.indexOf(state.spot));
+    const el = cards.find(c => +c.dataset.ix === i)
+      || cards[Math.max(0, Math.min(cards.length - 1, cards.filter(c => +c.dataset.ix < i).length))];
+    if (el) el.focus({ focusVisible: true });
+    return;
+  }
+  const b = document.querySelector('.screen.on .btn.big:not([hidden])') || menuButtons()[0];
+  if (b) b.focus({ focusVisible: true });
+}
+function menuMove(step) {
+  const list = menuButtons();
+  if (!list.length) return;
+  const i = list.indexOf(document.activeElement);
+  list[i < 0 ? 0 : (i + step + list.length) % list.length].focus({ focusVisible: true });
+}
+function menuBack() {
+  if (on('end')) { buildSpotList(); show('spots'); return; }
+  if (on('run')) { stopReplay(); clearHeld(); setPause(false); buildSpotList(); show('spots'); return; }
+  if (on('brief')) { buildSpotList(); show('spots'); return; }
+  if (on('spots')) { show('title'); }
+}
+
+/* ---------- manette ---------- */
+// Disposition standard (Xbox, PlayStation, Steam Deck) : A ou une gachette tient le geste,
+// la croix et le stick gauche redressent la planche en vol et parcourent les menus, B et
+// Echap reviennent en arriere, Start met en pause. La manette alimente le meme ensemble de
+// maintiens que le clavier et les doigts (source 'g') : aucune regle de jeu n'est a part.
+const pad = { a: false, b: false, start: false, nav: 0, navT: 0, steer: 0, steerX: 0 };
+function pollPad(dt) {
+  const all = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const g of all) if (g && g.connected) { gp = g; break; }
+  if (!gp) {
+    if (pad.a) { pad.a = false; inputUp('g', null); }
+    pad.steer = 0; pad.steerX = 0;
+    return;
+  }
+  const btn = i => !!(gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.5));
+  const ay = Math.abs(gp.axes[1] || 0) > 0.25 ? gp.axes[1] : 0;
+  const ax = Math.abs(gp.axes[0] || 0) > 0.5 ? gp.axes[0] : 0;
+  const up = btn(12) || ay < -0.5, down = btn(13) || ay > 0.5;
+  const left = btn(14) || ax < 0, right = btn(15) || ax > 0;
+  const inRun = on('run') && !on('jump') && !on('end');
+  // la planche : stick vers le haut releve la tete, comme la fleche haut
+  pad.steer = inRun ? Math.max(-1, Math.min(1, -ay + (btn(12) ? 1 : 0) - (btn(13) ? 1 : 0))) : 0;
+  // la vrille : stick a droite, lacet a droite ; la croix horizontale fait pareil
+  pad.steerX = inRun ? Math.max(-1, Math.min(1, ax + (btn(15) ? 1 : 0) - (btn(14) ? 1 : 0))) : 0;
+
+  const a = btn(0) || btn(7) || btn(6);
+  if (a && !pad.a) {
+    pad.a = true; lastInput = 'pad';
+    const f = document.activeElement;
+    // Sur un menu, A active le bouton choisi ; en jeu, il tient le geste.
+    if (!inRun && f && f !== document.body && f.closest && f.closest('button, [role=button]') && !autoPaused) { audio.unlock(); f.click(); }
+    else inputDown('g', null);
+  } else if (!a && pad.a) { pad.a = false; inputUp('g', null); }
+
+  const b = btn(1);
+  if (b && !pad.b) { lastInput = 'pad'; audio.ui(); menuBack(); }
+  pad.b = b;
+  const st = btn(9);
+  if (st && !pad.start) { lastInput = 'pad'; if (inRun) { if (!autoPaused) autoPause(); } else menuBack(); }
+  pad.start = st;
+
+  // Les menus : une case par impulsion, puis repetition toutes les 0,18 s si on tient.
+  // En relecture, la croix tourne l'angle au lieu de parcourir un menu.
+  const nav = inRun && !replay ? 0 : (right || down ? 1 : left || up ? -1 : 0);
+  if (nav && (nav !== pad.nav || pad.navT <= 0)) {
+    lastInput = 'pad';
+    if (replay) setReplayAngle(replay.angle + nav);
+    else if (on('spots') && !document.activeElement.closest('#spot-list')) focusDefault();
+    else menuMove(nav);
+    pad.navT = nav !== pad.nav ? 0.35 : 0.18;
+  }
+  pad.nav = nav;
+  pad.navT -= dt;
+}
+
+/* ---------- surface de test ---------- */
+// Pilotage du jeu sans clavier, pour les captures et le check.
+// autoJump : distance au bord (m) a laquelle appuyer. autoTuck : ttc (s) auquel lacher.
+// Les deux sont evalues dans la boucle, donc a la frame pres.
+window.__dods = {
+  press: () => onPress(null), down: () => onPress(null), up: () => onRelease(null),
+  get jump() { return jump; }, get world() { return world; }, camera, renderer,
+  get state() { return state; }, get owner() { return owner; }, get held() { return [...held]; }, get autoPaused() { return autoPaused; },
+  // la couche sonore expose son etat pose (probe) : le harnais ecrit les regles
+  // audio sans dependre d'un contexte AudioContext actif
+  get audio() { return audio; },
+  show, startRun, openBrief, quality, spots: SPOTS,
+  autoJump: null, autoTuck: null, autoSteer: false, autoSteerX: null, autoSteerRaw: null,
+  paused: false, slowmo: true, render: true,
+  // replay et fantome (v4.3) : la trace, la relecture, les angles
+  get rec() { return rec; }, get replay() { return replay; },
+  get echo() { return echo; }, get ghostEcho() { return ghostEcho; }, get ghosts() { return ghosts; },
+  startReplay, stopReplay, setReplayAngle,
+  // une seule image, a la demande : les captures n'ont pas a payer le rendu de chaque tick
+  draw: () => renderScene(),
+  pad, advance, menuBack, focusDefault
+};
 
 /* ---------- boucle ---------- */
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
+  composer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  // L'interface est dessinee pour un telephone (420 x 820). Sur un ecran de PC, de Steam
+  // Deck ou de tele, tout est agrandi d'un bloc : sans ca le HUD fait 11 px sur un 1080p.
+  const ui = Math.max(1, Math.min(2.6, Math.min(w / 400, h / 560)));
+  document.documentElement.style.setProperty('--ui', ui.toFixed(3));
 }
-window.addEventListener('resize', resize);
+// redimensionner vide le canvas : en pause, il faut redessiner l'image figee
+window.addEventListener('resize', () => { resize(); needsDraw = true; });
+renderer.setPixelRatio(PR_MAX);
 resize();
 
-const clock = new THREE.Clock();
 let shake = 0;
-// Un seul temps de simulation pour la mer : sous tick(), une horloge murale aurait fait
-// sauter les vagues et l'onde d'impact.
+// Un seul temps de simulation pour la mer et le ciel : sous tick(), une horloge murale
+// aurait fait sauter les vagues et l'onde d'impact.
 let simTime = 0;
+const view = { fov: 58, height: 800 };
+
+// Travelling lent autour du spot tant qu'on est dans les menus. Il vit dans la boucle
+// d'affichage : en v1 un setInterval a 30 Hz le deplacait une image sur deux.
+const menuCam = { snap: true, pos: new THREE.Vector3(), look: new THREE.Vector3(), tgt: new THREE.Vector3(), lookTgt: new THREE.Vector3() };
+function placeMenuCamera(dt) {
+  const h = world.spot.height;
+  const t = simTime;
+  const brief = on('brief');
+  const a = -0.45 + Math.sin(t * 0.07) * 0.5;
+  if (brief) {
+    // Sur la fiche, la camera vient au bord : le plongeur qui attend, et le vide devant lui.
+    const b = Math.sin(t * 0.11) * 0.35;
+    menuCam.tgt.set(-11 - Math.sin(b) * 3, h + 3.2 + Math.sin(t * 0.13) * 0.4, 6 + Math.cos(b) * 3);
+    menuCam.lookTgt.set(0, h - 1.2, -3.5);
+  } else {
+    menuCam.tgt.set(-34 - Math.sin(a) * 14, h * 0.75 + Math.sin(a * 2) * 3, 40 + Math.cos(a) * 12);
+    menuCam.lookTgt.set(0, h * 0.4, 0);
+  }
+  const k = menuCam.snap ? 1 : Math.min(1, dt * 1.6);
+  menuCam.snap = false;
+  camera.position.lerp(menuCam.tgt, k);
+  menuCam.look.lerp(menuCam.lookTgt, k);
+  camera.lookAt(menuCam.look);
+  // Ecran titre sur un ecran large : l'ile passe dans les deux tiers droits, le logo tient
+  // la gauche (style.css, meme seuil). Centree, elle disparaissait sous le logo en 1080p.
+  if (on('title') && wideTitle()) {
+    const W = window.innerWidth, H = window.innerHeight;
+    if (!camera.view || camera.view.offsetX !== -W * 0.2 || camera.view.fullWidth !== W) camera.setViewOffset(W, H, -W * 0.2, 0, W, H);
+  } else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+  let fov = 52;
+  if (camera.aspect < 1) fov *= 1 + (1 - camera.aspect) * 0.6;
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
+}
 
 // Une frame de simulation. dt est fourni par la boucle, ou force par les tests.
 function frame(dt) {
   if (!world) return;
   simTime += dt;
-  world.waterMat.uniforms.uTime.value = simTime;
-  if (jump && $('#s-run').classList.contains('on')) {
+  world.setTime(simTime);
+  if (replay) {
+    replayStep(dt);
+  } else if (jump && on('run')) {
     const k = slowFactor();
+    frameRate = k;
     dt *= k;
+    const A0 = window.__dods;
+    // autoSteer : un pilote parfait pour les tests, qui redresse la planche sans retard
+    const raw = Math.max(-1, Math.min(1, steerPtr + keyUp - keyDown + pad.steer));
+    jump.steer = A0.autoSteer ? Math.max(-1, Math.min(1, jump.tilt * 2.4 + jump.tiltV * 0.5)) : raw;
+    // steerRaw est le glisse du doigt reel : c'est lui que les figures lisent. Sous
+    // pilote automatique il vaut 0 (ou autoSteerRaw pour les scenarios), donc jamais
+    // de flick accidentel dans les tests ni dans le gauntlet.
+    jump.steerRaw = A0.autoSteerRaw != null ? A0.autoSteerRaw : (A0.autoSteer ? 0 : raw);
+    jump.steerX = A0.autoSteerX != null ? A0.autoSteerX
+      : Math.max(-1, Math.min(1, steerXPtr + keyRight - keyLeft + pad.steerX));
     jump.update(dt, s => { shake = s; });
+    // la trace du saut s'ecrit apres update : le rig est alors dans l'etat exact qui
+    // vient d'etre rendu, alignContact compris. Le fantome du record rejoue sa propre
+    // course au meme temps de jeu, superpose au coureur : l'ecart se lit tout seul.
+    if (recording) {
+      runT += dt;
+      if (jump.state !== lastPhase) notePhase();
+      rec.sample(jump.diver, runT);
+      if (ghostTrace) {
+        if (!ghostEcho) ghostEcho = new DiverEcho(world.scene, true);
+        ghostEcho.show();
+        if (ghostEcho.pose(ghostTrace.buf, ghostTrace.n, runT)) {
+          if (!ghostToasted) { ghostToasted = true; toast(t('replay.ghost')); }
+        } else ghostEcho.hide();
+      }
+      if ((jump.state === 'impact' && jump.impactT > 1.3) || rec.full) {
+        recording = false;
+        if (ghostEcho) ghostEcho.hide();
+      }
+    }
     const A = window.__dods;
     if (dt <= 0) { /* fige : pas d'entree automatique */ }
-    else if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) press();
-    else if (A.autoTuck != null && jump.state === 'fly' && !jump.tucked && jump.ttc <= A.autoTuck) press();
-    if (splash) splash.update(dt);
-    updateHud();
+    else if (A.autoJump != null && jump.state === 'walk' && (0 - jump.pos.z) <= A.autoJump) onPress(null);
+    else if (A.autoTuck != null && jump.state === 'fly' && !jump.tucked && jump.held && jump.ttc <= A.autoTuck) onRelease(null);
+    updateHud(dt);
+    if (on('jump')) updateCard(dt);
     if (shake > 0.01) {
       const amp = shake * 0.55 * motionScale();
       camera.position.x += (Math.random() - 0.5) * amp;
       camera.position.y += (Math.random() - 0.5) * amp;
     }
-  } else if (splash) splash.update(dt);
-  renderer.render(world.scene, camera);
+  } else {
+    frameRate = 1;
+    placeMenuCamera(dt);
+  }
+  view.fov = camera.fov;
+  view.height = renderer.domElement.height;
+  if (splash) splash.update(dt, view);
+  if (window.__dods.render) renderScene();
   hudFlash();
 }
 
-function loop() {
+let lastStamp = performance.now();
+function loop(ts) {
   requestAnimationFrame(loop);
-  const dt = Math.min(0.05, clock.getDelta());
-  frame(paused() ? 0 : dt);
+  const now = typeof ts === 'number' ? ts : performance.now();
+  const real = Math.max(0, (now - lastStamp) / 1000);
+  lastStamp = now;
+  frameStamp = now;
+  pollPad(real);
+  // En pause, rien ne bouge : on ne redessine pas la meme image soixante fois par
+  // seconde. Les tests avancent alors la simulation par tick(), qui dessine lui-meme.
+  if (paused()) { if (needsDraw) { needsDraw = false; frame(0); } return; }
+  adapt(real);
+  frame(Math.min(0.05, real));
 }
+let needsDraw = false;
 
 // Avance la simulation d'un nombre de pas fixes, sans dependre du rafraichissement ecran.
 window.__dods.tick = (steps = 1, dt = 1 / 60) => {
   for (let i = 0; i < steps; i++) frame(dt);
-  return jump ? { state: jump.state, y: +jump.pos.y.toFixed(2), z: +jump.pos.z.toFixed(2), ttc: +jump.ttc.toFixed(3), tucked: jump.tucked, grade: jump.grade && jump.grade.key } : null;
+  return jump ? { state: jump.state, y: +jump.pos.y.toFixed(2), z: +jump.pos.z.toFixed(2), ttc: +jump.ttc.toFixed(3), tucked: jump.tucked, held: jump.held, grade: jump.grade && jump.grade.key } : null;
 };
 
 let lastDead = false;
@@ -433,7 +1306,7 @@ function hudFlash() {
   const res = state.last;
   if (res && res.dead && !lastDead) {
     lastDead = true;
-    const f = $('#flash');
+    const f = E.flash;
     f.classList.add('red', 'on');
     setTimeout(() => f.classList.remove('on'), 90);
     setTimeout(() => f.classList.remove('red'), 600);
@@ -442,21 +1315,9 @@ function hudFlash() {
 }
 
 /* ---------- demarrage ---------- */
-// Un decor vivant des l'ecran titre : le spot le plus contraste sert de fond.
-const MENU_SPOT = SPOTS[2];
-world = buildWorld(MENU_SPOT, renderer);
-splash = createSplash(world.scene, world.waterMat);
-$('#version').textContent = VERSION;
-$('#loading').classList.add('off');
+// Un decor vivant des l'ecran titre : le spot le plus contraste sert de fond. Le plongeur
+// y est deja genere, donc le premier saut ne paie plus les 165 ms de son maillage.
+useWorld(SPOTS[2]);
+E.version.textContent = VERSION;
 show('title');
-loop();
-
-// Travelling lent tant qu'on est dans les menus.
-setInterval(() => {
-  if (!['title', 'spots', 'brief'].some(n => $('#s-' + n).classList.contains('on'))) return;
-  const h = MENU_SPOT.height;
-  const a = -0.45 + Math.sin(performance.now() * 0.00007) * 0.5;
-  camera.position.set(-34 - Math.sin(a) * 14, h * 0.75 + Math.sin(a * 2) * 3, 40 + Math.cos(a) * 12);
-  camera.lookAt(0, h * 0.4, 0);
-  if (Math.abs(camera.fov - 52) > 0.2) { camera.fov += (52 - camera.fov) * 0.1; camera.updateProjectionMatrix(); }
-}, 33);
+requestAnimationFrame(t => { lastStamp = t; loop(t); E.loading.classList.add('off'); });
