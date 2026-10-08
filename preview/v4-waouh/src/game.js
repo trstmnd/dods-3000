@@ -1,21 +1,23 @@
 import * as THREE from 'three';
-import { createDiver, applyPose, runPose, flightPose, POSES, LANDINGS } from './diver.js';
+import { createDiver, applyPose, runPose, flightPose, ragdollPose, POSES, LANDINGS } from './diver.js';
 import { EDGE_Z, RUN_START_Z, disposeTree } from './world.js';
 import { mulberry32, seedFromString } from './noise.js';
 import { t } from './i18n.js';
+import { judgeJump } from './judging.js';
 
 export const TUNING = {
   gravity: 13.5,
   runSpeed: 4.3,
-  // fenetres de decollage, en metres avant le bord
+  // fenetres de decollage, en metres avant le bord. `key` n'est pas traduit : les
+  // tests et la grille des juges (src/judging.js) le lisent.
   takeoff: [
     // drift : le couple qui fait piquer la planche du nez au depart. Un bon appel
     // part droit, un appel rate part en rotation et oblige a se redresser.
-    { max: 1.15, label: t('takeoff.perfect'), mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
-    { max: 2.6, label: t('takeoff.good'), mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
-    { max: 99, label: t('takeoff.early'), mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
+    { key: 'perfect', max: 1.15, label: t('takeoff.perfect'), mult: 1.25, vy: 5.5, vz: 3.9, drift: 2.2 },
+    { key: 'good', max: 2.6, label: t('takeoff.good'), mult: 1.0, vy: 4.7, vz: 3.4, drift: 4.0 },
+    { key: 'early', max: 99, label: t('takeoff.early'), mult: 0.75, vy: 3.4, vz: 4.4, drift: 6.5 }
   ],
-  noJump: { label: t('takeoff.none'), mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
+  noJump: { key: 'none', label: t('takeoff.none'), mult: 0.5, vy: 0.2, vz: 1.9, drift: 0 },
   // La planche (v3) : l'ecart d'inclinaison du corps a l'horizontale ideale, en radians.
   // Le doigt commande une inclinaison, le corps la suit avec un peu de retard, le vent et
   // l'elan le poussent. Integree a pas fixe : le meme saut a toutes les frequences.
@@ -31,6 +33,17 @@ export const TUNING = {
   ],
   styleRate: 46,
   baseRate: 12,
+  // Les figures (v4.2) : le glisse vertical garde la planche, un coup sec (flick) lance
+  // le salto ou le grab, et l'axe horizontal, neuf, fait la vrille. Le flick demande
+  // 1,3 unite de glisse en 0,2 s : le doigt simule de tools/gauntlet/bot.mjs bouge au
+  // plus a 6 unites par seconde (1,2 par fenetre), donc aucun bot ne declenche de
+  // figure par accident, et les notes des 1 620 sauts restent comparables.
+  figures: {
+    flickDelta: 1.3, flickWin: 0.2,
+    twistMin: 0.55, twistRate: 6.4,
+    saltoDur: 0.85, grabDur: 0.75,
+    score: 45, volBonus: 0.6, volMax: 3
+  },
   // Serie : deux GREAT ou mieux d'affilee, puis trois. Le troisieme saut devient un choix
   // entre assurer et tenter, la ou trois sauts independants ne faisaient qu'une addition.
   streak: [
@@ -61,10 +74,14 @@ export function streakBonus(n) {
   return best;
 }
 
+// Une fermeture controlee rend la main au joueur : c'est la direction du glisse a
+// l'instant du lacher qui choisit la forme d'entree (brief v4, la reception). Trop tot
+// ou trop tard, il ne reste que la boule ou le plat, comme avant.
 const LANDING_BY_GRADE = {
-  perfect: 'shrimp', great: 'shrimp', good: 'bullet',
+  perfect: 'choix', great: 'choix', good: 'choix',
   early: 'ball', chicken: 'ball', smack: 'flat'
 };
+const TAU = Math.PI * 2;
 
 export function windows(height) {
   // Plus le spot est haut, plus la fenetre est serree. Reglage du gauntlet du 30/09 (v3.2),
@@ -113,6 +130,10 @@ export class Jump {
     this._tgt = new THREE.Vector3();
     this._lookTgt = new THREE.Vector3();
     this._look = new THREE.Vector3();
+    // historique du glisse pour detecter les flicks : tampon circulaire fixe,
+    // la boucle chaude n'alloue rien (invariant 15)
+    this._fhT = new Float32Array(64);
+    this._fhV = new Float32Array(64);
     this.reset();
   }
 
@@ -126,6 +147,7 @@ export class Jump {
     this.gustSign = rnd() < 0.5 ? -1 : 1;
     this.tilt = 0; this.tiltV = 0; this.tiltSum = 0; this.tiltT = 0; this.pAcc = 0; this.tt = 0;
     this.steer = 0;
+    this.takeoffDist = 0; this.airTotal = 0;
     this.t = 0;
     this.pos = this.pos || new THREE.Vector3();
     this.pos.set(0, this.spot.height, RUN_START_Z);
@@ -137,12 +159,20 @@ export class Jump {
     this.tucked = false;
     this.held = false;
     this.flailing = false;
+    // figures : entrees brutes (le doigt reel, pas le pilote automatique des tests),
+    // figure en cours, compte des figures terminees, vrille et salto cumules
+    this.steerX = 0; this.steerRaw = 0;
+    this.fig = null; this.figT = 0; this.figCount = 0; this.figCountRes = 0; this.figLast = '';
+    this.twist = 0; this.twistAcc = 0; this.saltoPhase = 0;
+    this.tf = 0; this.flickN = 0; this.flickHead = 0;
+    this.ragPower = 1;
     this.grade = null;
     this.tuckTtc = 0;
     this.skew = 0;
     this.fovKick = 0;
     this.contact = this.contact || new THREE.Vector3(); // ou le corps touche l'eau
     this.landing = LANDINGS.flat; // sans fermeture, c'est le ventre qui prend tout
+    this.landingKey = 'flat';
     this.result = null;
     this.impactT = 0;
     this.takeoff = null;
@@ -194,6 +224,10 @@ export class Jump {
     const t = TUNING.takeoff.find(w => dist <= w.max);
     this.pos.z = z;
     this.takeoff = t;
+    // ce que l'elan et le vol des juges relisent : la distance au bord au moment de
+    // l'appui, et la duree de chute offerte par ce decollage
+    this.takeoffDist = dist;
+    this.airTotal = timeToWater(this.pos.y, t.vy, TUNING.gravity);
     this.vel.set(0, t.vy, t.vz);
     this.state = 'fly';
     this.t = 0;
@@ -207,6 +241,8 @@ export class Jump {
   fall() {
     this.tt = 0; this.pAcc = 0;
     this.takeoff = TUNING.noJump;
+    this.takeoffDist = -0.5;
+    this.airTotal = timeToWater(this.pos.y, TUNING.noJump.vy, TUNING.gravity);
     this.vel.set(0, TUNING.noJump.vy, TUNING.noJump.vz);
     this.state = 'fly';
     this.t = 0;
@@ -229,9 +265,18 @@ export class Jump {
     let grade = gradeAt(ttc, this.win);
     if (this.flailing && grade.key !== 'smack') grade = GRADE.early;
     this.grade = grade;
-    // La forme d'entree suit la fermeture : la crevette demande de fermer tard et juste,
-    // une fermeture precipitee ne laisse qu'une boule sans forme.
-    this.landing = LANDINGS[LANDING_BY_GRADE[grade.key]];
+    // Une figure en cours au lacher est coupee : elle ne compte pas. Seules les figures
+    // terminees avant l'instant du doigt entrent dans le score (invariant 12).
+    this.figCountRes = this.figCount;
+    this.fig = null; this.figT = 0; this.saltoPhase = 0;
+    // La forme d'entree suit la fermeture : une fermeture precipitee ne laisse qu'une
+    // boule sans forme. Une fermeture controlee laisse le choix de la reception.
+    const byGrade = LANDING_BY_GRADE[grade.key];
+    if (byGrade === 'choix') {
+      const sv = this.steer || 0;
+      this.landingKey = sv >= 0.5 ? 'nohands' : sv <= -0.5 ? 'bullet' : 'shrimp';
+    } else this.landingKey = byGrade;
+    this.landing = LANDINGS[this.landingKey];
     this.fovKick = 1;
     this.audio?.tuck();
     return true;
@@ -243,11 +288,12 @@ export class Jump {
     return plancheAt(this.tiltSum / this.tiltT);
   }
 
-  scoreFor(grade, styleTime, planche = NO_PLANCHE) {
+  scoreFor(grade, styleTime, planche = NO_PLANCHE, figs = 0) {
     const base = Math.round(this.spot.height * TUNING.baseRate);
     const style = Math.round(styleTime * TUNING.styleRate * Math.sqrt(this.spot.height / 12));
-    const score = grade.key === 'smack' ? 0 : Math.round((base + style) * grade.mult * this.takeoff.mult * planche.mult);
-    return { base, style, score };
+    const fig = Math.round(figs * TUNING.figures.score * Math.sqrt(this.spot.height / 12));
+    const score = grade.key === 'smack' ? 0 : Math.round((base + style + fig) * grade.mult * this.takeoff.mult * planche.mult);
+    return { base, style, fig, score };
   }
 
   // Les rafales du spot : deux houles lentes et une rafale franche par saut, a un moment
@@ -275,6 +321,61 @@ export class Jump {
     this.tt += h;
   }
 
+  /* ---------- les figures ---------- */
+  // Un pas de figure, dans le vol non ferme. La vrille suit l'axe horizontal du glisse ;
+  // le salto et le grab partent d'un coup sec sur l'axe vertical (flick). Les flicks sont
+  // lus sur steerRaw, le glisse du doigt reel : le pilote parfait des tests et le bot du
+  // gauntlet passent par steer sans toucher steerRaw, donc ils ne font jamais de figure.
+  figStep(step) {
+    const F = TUNING.figures;
+    if (!this.fig && Math.abs(this.steerX) > F.twistMin) {
+      const dTw = this.steerX * F.twistRate * step;
+      this.twist += dTw;
+      this.twistAcc += Math.abs(dTw);
+      if (this.twistAcc >= TAU) { this.twistAcc -= TAU; this.figDone('vrille'); }
+    }
+    this.flickPush(this.tf, this.steerRaw);
+    this.tf += step;
+    if (this.fig) {
+      this.figT += step;
+      if (this.fig === 'salto') {
+        const k = this.figT / F.saltoDur;
+        if (k >= 1) this.figDone('salto');
+        else this.saltoPhase = TAU * k;
+      } else if (this.figT >= F.grabDur) this.figDone('grab');
+    } else {
+      const dl = this.flickDelta();
+      if (dl <= -F.flickDelta) this.startFig('salto');   // coup sec vers le bas : le corps part en avant
+      else if (dl >= F.flickDelta) this.startFig('grab'); // coup sec vers le haut : les mains vont aux tibias
+    }
+  }
+
+  startFig(name) { this.fig = name; this.figT = 0; this.flickN = 0; this.flickHead = 0; }
+  figDone(name) {
+    this.fig = null; this.figT = 0; this.saltoPhase = 0;
+    this.figCount++; this.figLast = name;
+    this.flickN = 0; this.flickHead = 0;
+    this.audio?.fig();
+  }
+
+  // Tampon circulaire des (temps, glisse) : la detection de flick ne depend ni de la
+  // frequence d'ecran ni de la taille des pas (invariant 13 meme esprit).
+  flickPush(t, v) {
+    this._fhT[this.flickHead] = t;
+    this._fhV[this.flickHead] = v;
+    this.flickHead = (this.flickHead + 1) % 64;
+    if (this.flickN < 64) this.flickN++;
+  }
+  flickDelta() {
+    if (this.flickN < 2) return 0;
+    const last = (this.flickHead + 63) % 64;
+    const tNow = this._fhT[last];
+    let i = (this.flickHead - this.flickN + 128) % 64;
+    const stop = last;
+    while (i !== stop && tNow - this._fhT[i] > TUNING.figures.flickWin) i = (i + 1) % 64;
+    return this._fhV[last] - this._fhV[i];
+  }
+
   // Ce que le joueur encaisserait s'il lachait maintenant. C'est la mise en jeu : elle
   // monte a chaque palier franchi, puis tombe a zero une fois l'eau trop proche.
   potential() {
@@ -284,7 +385,7 @@ export class Jump {
     if (this.flailing && grade.key !== 'smack') grade = GRADE.early;
     const p = this._pot || (this._pot = {});
     p.planche = this.planche();
-    p.grade = grade; p.score = this.scoreFor(grade, this.t, p.planche).score; p.ttc = ttc;
+    p.grade = grade; p.score = this.scoreFor(grade, this.t, p.planche, this.figCount).score; p.ttc = ttc;
     return p;
   }
 
@@ -316,10 +417,14 @@ export class Jump {
           const h = TUNING.planche.step;
           while (this.pAcc >= h) { this.plancheStep(h); this.pAcc -= h; }
         }
+        if (!this.flailing) this.figStep(step);
         if (this.flailing) applyPose(d.joints, POSES.flail, Math.min(1, dt * 7));
+        else if (this.fig === 'grab') applyPose(d.joints, POSES.grab, Math.min(1, dt * 9));
         else applyPose(d.joints, POSES.dods, Math.min(1, dt * 9), flightPose(this.t));
         // le corps s'ouvre a l'horizontale, ventre vers l'eau : c'est la signature du dods,
-        // et l'inclinaison de la planche se lit directement sur lui
+        // et l'inclinaison de la planche se lit directement sur lui. Le salto s'ajoute a
+        // l'inclinaison, la vrille au lacet : l'ordre d'Euler y avant x (invariant 3) fait
+        // de rotation.y un roll autour de l'axe du corps, c'est exactement la vrille.
         const pitch = this.flailing ? 0.9 : 1.48 + this.tilt;
         this.bodyRot += (pitch - this.bodyRot) * Math.min(1, dt * (this.t < 0.3 ? 3.2 : 12));
         this.yaw += (-1.05 - this.yaw) * Math.min(1, dt * 3);
@@ -328,22 +433,36 @@ export class Jump {
         applyPose(d.joints, POSES[this.landing.pose], Math.min(1, dt * 34));
         this.bodyRot += (this.landing.pitch - this.bodyRot) * Math.min(1, dt * 17);
         this.yaw += (-0.45 - this.yaw) * Math.min(1, dt * 13);
+        // la vrille se deroule avant l'entree : la forme de reception se lit de face
+        this.twist *= Math.max(0, 1 - dt * 6);
       }
-      d.root.rotation.x = this.bodyRot;
-      d.root.rotation.y = this.yaw;
+      d.root.rotation.x = this.bodyRot + this.saltoPhase;
+      d.root.rotation.y = this.yaw + this.twist;
       if (this.pos.y <= 0) this.land();
     } else if (this.state === 'impact') {
       this.impactT += step;
       // L'eau freine, elle n'efface pas. Le corps s'enfonce d'environ deux metres, la
       // surface se referme dessus et c'est elle qui le cache.
-      const brake = this.result && this.result.dead ? 9 : 14;
+      const dead = this.result && this.result.dead;
+      const brake = dead ? 9 : 14;
+      // Le plat claque et rebondit : la gravite ramene le corps vers l'eau, l'eau le
+      // freine, il coule ensuite. Une entree controlee file droit sous la surface.
+      if (dead) this.vel.y -= 11 * step;
       this.vel.multiplyScalar(Math.max(0, 1 - step * brake));
       this.pos.y = Math.max(-4.2, this.pos.y + this.vel.y * step);
       this.pos.z += this.vel.z * step;
-      // sous l'eau le corps se relache et s'ouvre
-      applyPose(d.joints, POSES[this.impactT > 0.28 ? 'pike' : this.landing.pose], Math.min(1, dt * 3.5));
-      this.bodyRot += (this.landing.pitch + 0.3 - this.bodyRot) * Math.min(1, dt * 2);
-      d.root.rotation.x = this.bodyRot;
+      if (dead) {
+        // ragdoll : les membres flottent sur des oscillations amorties, deterministes
+        applyPose(d.joints, ragdollPose(this.impactT, this.ragPower), Math.min(1, dt * 12));
+        this.bodyRot += (this.landing.pitch + 0.55 - this.bodyRot) * Math.min(1, dt * 1.6)
+          + Math.sin(this.impactT * 7.3) * 0.05 * Math.exp(-this.impactT * 2.2);
+      } else {
+        // sous l'eau le corps se relache et s'ouvre
+        applyPose(d.joints, POSES[this.impactT > 0.28 ? 'pike' : this.landing.pose], Math.min(1, dt * 3.5));
+        this.bodyRot += (this.landing.pitch + 0.3 - this.bodyRot) * Math.min(1, dt * 2);
+      }
+      d.root.rotation.x = this.bodyRot + this.saltoPhase;
+      d.root.rotation.y = this.yaw + this.twist;
       if (this.impactT > 1.25 && this.onDone) { const cb = this.onDone; this.onDone = null; cb(this.result); }
     }
 
@@ -407,6 +526,11 @@ export class Jump {
     const dead = this.grade.key === 'smack';
     const speed = Math.abs(this.vel.y);
     const power = THREE.MathUtils.clamp(speed / 26, 0.35, 1.25) * (dead ? 1.25 : (this.grade.mult >= 2 ? 1.15 : 0.8));
+    if (dead) {
+      // le plat qui claque : le ventre frappe, le corps rebondit, l'amplitude suit la vitesse
+      this.vel.y = speed * 0.11;
+      this.ragPower = THREE.MathUtils.clamp(speed / 18, 0.5, 1.3);
+    }
     // La gerbe part de la main ou du pied qui entre, pas de l'origine du rig. A plat c'est
     // le ventre qui frappe : la pose desordonnee met un coude en point bas, loin du buste,
     // et la gerbe partait a cote du corps.
@@ -415,16 +539,24 @@ export class Jump {
       this.splash.burst(TMPV.x, TMPV.z, power, dead);
     } else this.splash.burst(this.contact.x, this.contact.z, power, dead);
     this.shake = dead ? 1.25 : 0.55 + this.grade.mult * 0.12;
-    this.audio?.splash(dead);
+    // la puissance mesuree du saut dose le sub et le clapot : plus c'est haut,
+    // plus l'impact descend dans le corps
+    this.audio?.splash(dead, power);
 
     const planche = this.tucked ? (this.plancheRes || this.planche()) : this.planche();
-    const { base, style, score } = this.scoreFor(this.grade, this.styleTime, planche);
+    const figs = this.tucked ? this.figCountRes : 0;
+    const { base, style, fig, score } = this.scoreFor(this.grade, this.styleTime, planche, figs);
+    // Les quatre criteres et les cinq juges se lisent a l'entree dans l'eau, une
+    // fois pour toutes : rien d'eux ne bouge au ralenti ni a l'ecran de resultat.
+    const judged = judgeJump(this, planche, power);
     this.result = {
       dead, grade: this.grade, base, style, score,
       takeoff: this.takeoff, ttc: this.tuckTtc, air: this.styleTime,
       height: this.spot.height,
       // les bornes voyagent avec le resultat : l'ecart au parfait se lit sans recalculer
-      win: this.win, tucked: this.tucked, landing: this.landing, planche
+      win: this.win, tucked: this.tucked, landing: this.landing, landingKey: this.landingKey, planche,
+      fig: figs, figPts: fig, power,
+      judged: { notes: judged.notes, judges: judged.judges, mark: judged.mark, weak: judged.weak }
     };
   }
 
@@ -490,6 +622,7 @@ export class Jump {
       h.hot = ttc <= w.goodHi;
       h.pot = this.potential();
       h.tilt = this.tilt; h.wind = this.windAt(this.tt); h.gust = this.gustNow() * (this.spot.wind || 0);
+      h.fig = this.fig; h.figCount = this.figCount; h.figLast = this.figLast; h.twist = this.twist;
       return h;
     }
     h.phase = 'impact'; h.alt = 0;
